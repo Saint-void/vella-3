@@ -21,10 +21,12 @@ const ResourcesPage = lazy(() => import('./pages/ResourcesPage').then(m => ({ de
 const AboutPage = lazy(() => import('./pages/AboutPage').then(m => ({ default: m.AboutPage })));
 const Login = lazy(() => import('./pages/Login').then(m => ({ default: m.Login })));
 const SignUp = lazy(() => import('./pages/SignUp').then(m => ({ default: m.SignUp })));
+const Dashboard = lazy(() => import('./pages/Dashboard').then(m => ({ default: m.Dashboard })));
+const AuthCallback = lazy(() => import('./pages/AuthCallback').then(m => ({ default: m.AuthCallback })));
 
 export default function App() {
   const location = useLocation();
-  const isAuthPage = location.pathname === '/login' || location.pathname === '/signup';
+  const isStandalonePage = location.pathname === '/login' || location.pathname === '/signup' || location.pathname === '/dashboard' || location.pathname === '/auth/callback';
 
   return (
     <div className="relative min-h-screen bg-vella-black overflow-hidden selection:bg-vella-white selection:text-vella-black">
@@ -36,7 +38,7 @@ export default function App() {
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[1000px] h-[500px] opacity-20 pointer-events-none blur-[120px] bg-vella-white rounded-full" />
       
       <div className="relative z-10 flex flex-col items-center">
-        {!isAuthPage && <Navbar />}
+        {!isStandalonePage && <Navbar />}
         
         <Suspense fallback={<PageSkeleton />}>
           <Routes>
@@ -49,14 +51,15 @@ export default function App() {
             <Route path="/about" element={<AboutPage />} />
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<SignUp />} />
+            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/auth/callback" element={<AuthCallback />} />
           </Routes>
         </Suspense>
 
-        {!isAuthPage && <Footer />}
+        {!isStandalonePage && <Footer />}
       </div>
       
-      {!isAuthPage && <ChatWidget />}
+      {!isStandalonePage && <ChatWidget />}
     </div>
   );
 }
-
