@@ -1,5 +1,17 @@
 export const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000").replace(/\/$/, "");
 
+const shouldSkipNgrokBrowserWarning = (() => {
+  try {
+    return new URL(API_BASE_URL).hostname.includes("ngrok");
+  } catch {
+    return false;
+  }
+})();
+
+export const API_HEADERS: Record<string, string> = shouldSkipNgrokBrowserWarning
+  ? { "ngrok-skip-browser-warning": "true" }
+  : {};
+
 type ApiOptions = Omit<RequestInit, "headers"> & {
   headers?: Record<string, string>;
 };
@@ -30,6 +42,7 @@ export async function publicApiRequest<T>(
     ...options,
     headers: {
       "Content-Type": "application/json",
+      ...API_HEADERS,
       ...options.headers,
     },
   });
@@ -47,6 +60,7 @@ export async function apiRequest<T>(
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${accessToken}`,
+      ...API_HEADERS,
       ...options.headers,
     },
   });

@@ -2,9 +2,11 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Menu, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { getAccessToken } from '../lib/authSession';
 
 export function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
+  const [isLoggedIn] = useState(() => Boolean(getAccessToken()));
   const links = ['Features', 'Solutions', 'Pricing', 'Integrations', 'Resources', 'About'];
 
   return (
@@ -32,14 +34,22 @@ export function Navbar() {
           </div>
         </div>
 
-        <div className="hidden md:flex items-center gap-4">
-          <Link to="/login" className="text-sm font-medium text-vella-accent hover:text-vella-white transition-colors">
-            Login
-          </Link>
-          <Link to="/signup" className="px-4 py-2 text-sm font-medium text-vella-black bg-vella-white rounded-full hover:bg-gray-200 transition-colors">
-            Start Free
-          </Link>
-        </div>
+        {isLoggedIn ? (
+          <div className="hidden md:flex items-center gap-4">
+            <Link to="/dashboard" className="px-4 py-2 text-sm font-medium text-vella-black bg-vella-white rounded-full hover:bg-gray-200 transition-colors">
+              Dashboard
+            </Link>
+          </div>
+        ) : (
+          <div className="hidden md:flex items-center gap-4">
+            <Link to="/login" className="text-sm font-medium text-vella-accent hover:text-vella-white transition-colors">
+              Login
+            </Link>
+            <Link to="/signup" className="px-4 py-2 text-sm font-medium text-vella-black bg-vella-white rounded-full hover:bg-gray-200 transition-colors">
+              Start Free
+            </Link>
+          </div>
+        )}
 
         <button 
           className="md:hidden text-vella-white"
@@ -71,14 +81,22 @@ export function Navbar() {
               ))}
             </div>
             <div className="h-px bg-white/10" />
-            <div className="flex flex-col gap-4">
-              <Link to="/login" onClick={() => setIsOpen(false)} className="text-center py-3 text-base font-medium text-vella-white border border-white/10 rounded-xl hover:bg-white/5 transition-colors">
-                Login
-              </Link>
-              <Link to="/signup" onClick={() => setIsOpen(false)} className="text-center py-3 text-base font-medium text-vella-black bg-vella-white rounded-xl hover:bg-gray-200 transition-colors">
-                Start Free
-              </Link>
-            </div>
+            {isLoggedIn ? (
+              <div className="flex flex-col gap-4">
+                <Link to="/dashboard" onClick={() => setIsOpen(false)} className="text-center py-3 text-base font-medium text-vella-black bg-vella-white rounded-xl hover:bg-gray-200 transition-colors">
+                  Dashboard
+                </Link>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-4">
+                <Link to="/login" onClick={() => setIsOpen(false)} className="text-center py-3 text-base font-medium text-vella-white border border-white/10 rounded-xl hover:bg-white/5 transition-colors">
+                  Login
+                </Link>
+                <Link to="/signup" onClick={() => setIsOpen(false)} className="text-center py-3 text-base font-medium text-vella-black bg-vella-white rounded-xl hover:bg-gray-200 transition-colors">
+                  Start Free
+                </Link>
+              </div>
+            )}
           </motion.div>
         )}
       </AnimatePresence>
