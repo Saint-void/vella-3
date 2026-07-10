@@ -1,0 +1,6 @@
+{
+  "name": "Vella",
+  "description": "A premium, modern SaaS landing page for an AI customer support platform.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
