@@ -139,7 +139,7 @@ export function Dashboard() {
         className="fixed top-4 md:top-6 left-0 right-0 z-50 w-[calc(100%-2rem)] max-w-[1400px] mx-auto flex items-center justify-between px-4 md:px-6 py-2.5 md:py-3.5 backdrop-blur-md bg-vella-darker/60 border border-white/10 rounded-full shadow-2xl"
       >
         <Link to="/" className="flex items-center gap-2 text-2xl font-bold text-vella-white">
-          <img src="/logo.png" alt="Vella Logo" className="h-12 w-auto object-contain brightness-0 invert" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+          <img src="/logo.png" alt="Vella Logo" className="h-10 w-auto object-contain brightness-0 invert" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
         </Link>
 
         <div className="flex items-center gap-2 sm:gap-4">
