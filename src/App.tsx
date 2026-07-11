@@ -23,10 +23,16 @@ const Login = lazy(() => import('./pages/Login').then(m => ({ default: m.Login }
 const SignUp = lazy(() => import('./pages/SignUp').then(m => ({ default: m.SignUp })));
 const Dashboard = lazy(() => import('./pages/Dashboard').then(m => ({ default: m.Dashboard })));
 const AuthCallback = lazy(() => import('./pages/AuthCallback').then(m => ({ default: m.AuthCallback })));
+const Widget = lazy(() => import('./pages/Widget').then(m => ({ default: m.Widget })));
 
 export default function App() {
   const location = useLocation();
-  const isStandalonePage = location.pathname === '/login' || location.pathname === '/signup' || location.pathname === '/dashboard' || location.pathname === '/auth/callback';
+  const isStandalonePage =
+    location.pathname === '/login' ||
+    location.pathname === '/signup' ||
+    location.pathname === '/dashboard' ||
+    location.pathname === '/auth/callback' ||
+    location.pathname.startsWith('/widget/');
 
   return (
     <div className="relative min-h-screen bg-vella-black overflow-hidden selection:bg-vella-white selection:text-vella-black">
@@ -53,6 +59,7 @@ export default function App() {
             <Route path="/signup" element={<SignUp />} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/auth/callback" element={<AuthCallback />} />
+            <Route path="/widget/:chatbotId" element={<Widget />} />
           </Routes>
         </Suspense>
 

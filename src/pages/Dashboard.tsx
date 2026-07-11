@@ -5,6 +5,7 @@ import {
   BarChart2,
   Bot,
   CheckCircle2,
+  Copy,
   FileText,
   LayoutDashboard,
   Loader2,
@@ -165,6 +166,7 @@ export function Dashboard() {
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [isSavingChatbot, setIsSavingChatbot] = useState(false);
   const [isSavingFaq, setIsSavingFaq] = useState(false);
+  const [copiedSnippet, setCopiedSnippet] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [chatbotError, setChatbotError] = useState<string | null>(null);
   const [faqError, setFaqError] = useState<string | null>(null);
@@ -172,6 +174,11 @@ export function Dashboard() {
   const selectedChatbot = chatbots.find((chatbot) => chatbot.id === selectedChatbotId) ?? null;
   const displayName = [profile?.first_name, profile?.last_name].filter(Boolean).join(' ') || 'New founder';
   const isCreatingChatbot = selectedChatbot === null;
+  const canPublishWidget = selectedChatbot?.status === 'active' && Boolean(selectedChatbot.website_domain?.trim());
+  const widgetLoaderUrl = typeof window === 'undefined' ? '' : `${window.location.origin}/widget-loader.js`;
+  const widgetSnippet = selectedChatbot && canPublishWidget
+    ? `<script async src="${widgetLoaderUrl}" data-vella-chatbot-id="${selectedChatbot.id}"></script>`
+    : '';
 
   const loadProfile = async (token: string) => {
     const data = await apiRequest<Profile>('/api/v1/auth/me', token);
@@ -194,6 +201,18 @@ export function Dashboard() {
     }
 
     return rows;
+  };
+
+  const copyWidgetSnippet = async () => {
+    if (!widgetSnippet) return;
+
+    try {
+      await navigator.clipboard.writeText(widgetSnippet);
+      setCopiedSnippet(true);
+      window.setTimeout(() => setCopiedSnippet(false), 1800);
+    } catch {
+      setCopiedSnippet(false);
+    }
   };
 
   useEffect(() => {
@@ -997,12 +1016,28 @@ export function Dashboard() {
                     transition={{ duration: 0.65 }}
                     className="border border-white/10 bg-[#1c1c1c]/20 backdrop-blur-xl rounded-3xl p-6 shadow-2xl"
                   >
-                    <p className="text-sm text-white/40">Preview</p>
-                    <h2 className="text-xl font-semibold text-white mt-1">Widget</h2>
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <p className="text-sm text-white/40">Preview</p>
+                        <h2 className="text-xl font-semibold text-white mt-1">Widget install</h2>
+                      </div>
+                      {selectedChatbot && (
+                        <button
+                          type="button"
+                          onClick={copyWidgetSnippet}
+                          disabled={!widgetSnippet}
+                          className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-medium text-white/70 transition-colors hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          <Copy className="h-3.5 w-3.5" />
+                          {copiedSnippet ? 'Copied' : 'Copy snippet'}
+                        </button>
+                      )}
+                    </div>
+
                     <div className="mt-6 rounded-2xl border border-white/10 bg-[#101010] p-4">
                       <div className="flex items-center gap-3">
                         <div
-                          className="w-9 h-9 rounded-full flex items-center justify-center border border-white/10"
+                          className="flex h-9 w-9 items-center justify-center rounded-full border border-white/10"
                           style={{ backgroundColor: colorInputValue(chatbotForm.brand_color) }}
                         >
                           <Bot className="w-4 h-4 text-white" />
@@ -1014,6 +1049,22 @@ export function Dashboard() {
                       </div>
                       <p className="mt-4 rounded-xl bg-white/5 px-4 py-3 text-sm text-white/65">
                         {chatbotForm.greeting_message || 'Hi! How can I help you today?'}
+                      </p>
+                    </div>
+
+                    <div className="mt-4 rounded-2xl border border-white/10 bg-black/20 p-4">
+                      <p className="text-xs font-medium uppercase tracking-[0.2em] text-white/35">Embed code</p>
+                      {widgetSnippet ? (
+                        <pre className="mt-3 overflow-x-auto rounded-xl border border-white/10 bg-black/40 p-4 text-[11px] leading-relaxed text-white/70">{widgetSnippet}</pre>
+                      ) : (
+                        <div className="mt-3 rounded-xl border border-dashed border-white/10 bg-white/5 px-4 py-3 text-sm text-white/45">
+                          {selectedChatbot
+                            ? 'Set a website domain and mark this chatbot active to generate the install snippet.'
+                            : 'Save a chatbot to generate its install snippet.'}
+                        </div>
+                      )}
+                      <p className="mt-3 text-xs leading-relaxed text-white/35">
+                        The backend only serves active widgets from their configured website domain.
                       </p>
                     </div>
                   </motion.aside>
