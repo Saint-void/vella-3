@@ -58,11 +58,13 @@ type ChatbotForm = {
   status: Chatbot['status'];
 };
 
-const sidebarLinks = [
-  { icon: LayoutDashboard, label: 'Overview', active: false },
-  { icon: MessageSquare, label: 'Chatbots', active: true },
-  { icon: BarChart2, label: 'Analytics', active: false },
-  { icon: Users, label: 'Leads', active: false },
+type DashboardView = 'overview' | 'chatbots' | 'analytics' | 'leads';
+
+const sidebarLinks: Array<{ id: DashboardView; icon: typeof LayoutDashboard; label: string }> = [
+  { id: 'overview', icon: LayoutDashboard, label: 'Overview' },
+  { id: 'chatbots', icon: MessageSquare, label: 'Chatbots' },
+  { id: 'analytics', icon: BarChart2, label: 'Analytics' },
+  { id: 'leads', icon: Users, label: 'Leads' },
 ];
 
 const inputClass =
@@ -144,6 +146,8 @@ function colorInputValue(color: string) {
 
 export function Dashboard() {
   const navigate = useNavigate();
+  const [activeView, setActiveView] = useState<DashboardView>('overview');
+  const [isChatbotEditorOpen, setIsChatbotEditorOpen] = useState(false);
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [email, setEmail] = useState<string>();
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -228,7 +232,7 @@ export function Dashboard() {
     let isMounted = true;
 
     async function loadFaqs() {
-      if (!accessToken || !selectedChatbotId) {
+      if (!accessToken || !selectedChatbotId || !isChatbotEditorOpen) {
         setFaqs([]);
         return;
       }
@@ -251,23 +255,48 @@ export function Dashboard() {
     return () => {
       isMounted = false;
     };
-  }, [accessToken, selectedChatbotId]);
+  }, [accessToken, selectedChatbotId, isChatbotEditorOpen]);
+
+  const handleChangeView = (view: DashboardView) => {
+    setActiveView(view);
+    setChatbotError(null);
+    setFaqError(null);
+  };
 
   const handleSelectChatbot = (chatbot: Chatbot) => {
+    setActiveView('chatbots');
     setSelectedChatbotId(chatbot.id);
     setChatbotForm(chatbotToForm(chatbot));
+    setIsChatbotEditorOpen(true);
     setChatbotError(null);
     setFaqError(null);
     setEditingFaqId(null);
   };
 
   const handleStartNewChatbot = () => {
+    setActiveView('chatbots');
     setSelectedChatbotId(null);
     setChatbotForm(emptyChatbotForm);
     setFaqs([]);
+    setIsChatbotEditorOpen(true);
     setChatbotError(null);
     setFaqError(null);
     setEditingFaqId(null);
+  };
+
+  const handleCloseChatbotEditor = () => {
+    setIsChatbotEditorOpen(false);
+    setChatbotError(null);
+    setFaqError(null);
+    setEditingFaqId(null);
+    if (selectedChatbot) {
+      setChatbotForm(chatbotToForm(selectedChatbot));
+    } else if (chatbots[0]) {
+      setSelectedChatbotId(chatbots[0].id);
+      setChatbotForm(chatbotToForm(chatbots[0]));
+    } else {
+      setChatbotForm(emptyChatbotForm);
+    }
   };
 
   const handleSaveProfile = async (event: React.FormEvent) => {
@@ -348,6 +377,7 @@ export function Dashboard() {
         setSelectedChatbotId(null);
         setChatbotForm(emptyChatbotForm);
         setFaqs([]);
+        setIsChatbotEditorOpen(false);
       }
     } catch (err) {
       setChatbotError(err instanceof Error ? err.message : 'Could not delete chatbot.');
@@ -461,11 +491,14 @@ export function Dashboard() {
     navigate('/login', { replace: true });
   };
 
-  const stats = [
-    { label: 'Chatbots', value: String(chatbots.length), detail: chatbots.length === 1 ? 'One AI employee in setup' : 'AI employees in setup' },
-    { label: 'Manual Q&A', value: String(faqs.length), detail: selectedChatbot ? 'For the selected chatbot' : 'Create a chatbot first' },
-    { label: 'Status', value: selectedChatbot?.status ?? 'Draft', detail: selectedChatbot ? 'Current chatbot state' : 'Ready for onboarding' },
+  const overviewStats = [
+    { label: 'Chatbots', value: String(chatbots.length), detail: chatbots.length === 1 ? 'One AI employee created' : 'AI employees created' },
+    { label: 'Conversations', value: '0', detail: 'Widget chat history opens later' },
+    { label: 'Manual Q&A', value: '0', detail: 'Open a chatbot to manage answers' },
   ];
+
+  const activeChatbots = chatbots.filter((chatbot) => chatbot.status === 'active').length;
+  const pageTitle = activeView === 'overview' ? 'Overview' : sidebarLinks.find((link) => link.id === activeView)?.label ?? 'Dashboard';
 
   return (
     <div className="min-h-screen bg-vella-black text-vella-white flex flex-col w-full relative">
@@ -508,11 +541,14 @@ export function Dashboard() {
           <div className="flex flex-col gap-2">
             {sidebarLinks.map((link) => {
               const Icon = link.icon;
+              const isActive = activeView === link.id;
               return (
                 <button
-                  key={link.label}
+                  key={link.id}
+                  type="button"
+                  onClick={() => handleChangeView(link.id)}
                   className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${
-                    link.active
+                    isActive
                       ? 'bg-white/10 text-white font-medium'
                       : 'text-white/50 hover:text-white hover:bg-white/5'
                   }`}
@@ -526,552 +562,652 @@ export function Dashboard() {
         </motion.aside>
 
         <main className="flex-1 flex flex-col min-h-[620px] gap-6">
-          <motion.section
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5 }}
-            className="border border-white/10 bg-[#1c1c1c]/20 backdrop-blur-xl rounded-3xl p-6 md:p-8 shadow-2xl"
-          >
-            <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-5">
-              <div>
-                <p className="text-sm text-white/40">Dashboard</p>
-                <h1 className="text-3xl md:text-4xl font-semibold text-white mt-2">Welcome, {displayName}</h1>
-                <p className="text-white/50 mt-3 max-w-2xl">
-                  Set up the customer support agent, tune its brand details, and seed it with manual Q&A before document training opens up.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={handleStartNewChatbot}
-                className="inline-flex items-center justify-center gap-2 px-5 py-3 text-sm font-medium text-vella-black bg-vella-white rounded-full transition-all hover:scale-105 active:scale-95 self-start disabled:opacity-60"
-                disabled={isLoading}
-              >
-                <Plus className="w-4 h-4" />
-                New Chatbot
-              </button>
-            </div>
-
-            {error && (
-              <div className="mt-6 rounded-2xl border border-red-400/20 bg-red-500/10 p-4 text-sm text-red-100 flex gap-3">
-                <AlertCircle className="w-5 h-5 shrink-0" />
-                <div className="flex-1">
-                  <p>{error}</p>
-                  {accessToken && (
-                    <button
-                      type="button"
-                      onClick={handleRetry}
-                      className="mt-3 inline-flex items-center gap-2 text-xs font-medium text-white/80 hover:text-white"
-                    >
-                      <RefreshCw className="w-3.5 h-3.5" />
-                      Retry
-                    </button>
-                  )}
-                </div>
-              </div>
-            )}
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-8">
-              {stats.map((stat) => (
-                <div key={stat.label} className="rounded-2xl border border-white/10 bg-black/20 p-5">
-                  <p className="text-sm text-white/45">{stat.label}</p>
-                  <p className="text-3xl font-semibold text-white mt-2 capitalize">{stat.value}</p>
-                  <p className="text-xs text-white/35 mt-3">{stat.detail}</p>
-                </div>
-              ))}
-            </div>
-          </motion.section>
-
-          <section className="grid grid-cols-1 xl:grid-cols-[320px_1fr_360px] gap-6">
-            <motion.aside
-              initial={{ opacity: 0, y: 18 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.55 }}
-              className="border border-white/10 bg-[#1c1c1c]/20 backdrop-blur-xl rounded-3xl p-5 shadow-2xl"
-            >
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-sm text-white/40">Chatbots</p>
-                  <h2 className="text-xl font-semibold text-white mt-1">Workspace</h2>
-                </div>
-                {isLoading && <Loader2 className="w-5 h-5 text-white/50 animate-spin" />}
-              </div>
-
-              <div className="mt-5 space-y-3">
-                {chatbots.map((chatbot) => (
-                  <button
-                    key={chatbot.id}
-                    type="button"
-                    onClick={() => handleSelectChatbot(chatbot)}
-                    className={`w-full text-left rounded-2xl border p-4 transition-colors ${
-                      chatbot.id === selectedChatbotId
-                        ? 'border-white/30 bg-white/10'
-                        : 'border-white/10 bg-black/20 hover:bg-white/5'
-                    }`}
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="font-medium text-white">{chatbot.name}</p>
-                        <p className="text-xs text-white/40 mt-1">{chatbot.business_name}</p>
-                      </div>
-                      <span className={`text-[11px] px-2 py-1 rounded-full border capitalize ${statusClass(chatbot.status)}`}>
-                        {chatbot.status}
-                      </span>
-                    </div>
-                    <p className="text-xs text-white/30 mt-3">Updated {shortDate(chatbot.updated_at)}</p>
-                  </button>
-                ))}
-
-                {chatbots.length === 0 && !isLoading && (
-                  <div className="rounded-2xl border border-dashed border-white/10 bg-black/20 p-5 text-center">
-                    <Bot className="w-8 h-8 text-white/25 mx-auto" />
-                    <p className="text-sm text-white/55 mt-3">No chatbot yet</p>
-                    <p className="text-xs text-white/35 mt-1">Create the first support agent from the setup form.</p>
-                  </div>
-                )}
-              </div>
-            </motion.aside>
-
-            <motion.div
-              initial={{ opacity: 0, y: 18 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6 }}
-              className="border border-white/10 bg-[#1c1c1c]/20 backdrop-blur-xl rounded-3xl p-6 shadow-2xl"
-            >
-              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-                <div>
-                  <p className="text-sm text-white/40">{isCreatingChatbot ? 'Create chatbot' : 'Chatbot settings'}</p>
-                  <h2 className="text-2xl font-semibold text-white mt-1">
-                    {isCreatingChatbot ? 'Business setup' : selectedChatbot?.name}
-                  </h2>
-                </div>
-                {selectedChatbot && (
-                  <button
-                    type="button"
-                    onClick={handleDeleteChatbot}
-                    disabled={isSavingChatbot}
-                    className="inline-flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium text-red-100 border border-red-400/20 bg-red-500/10 rounded-xl hover:bg-red-500/20 disabled:opacity-60"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                    Delete
-                  </button>
-                )}
-              </div>
-
-              {chatbotError && (
-                <div className="mt-5 rounded-2xl border border-red-400/20 bg-red-500/10 p-4 text-sm text-red-100 flex gap-3">
-                  <AlertCircle className="w-5 h-5 shrink-0" />
-                  <p>{chatbotError}</p>
-                </div>
-              )}
-
-              <form className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4" onSubmit={handleSaveChatbot}>
-                <label className="block">
-                  <span className="text-xs font-medium text-white/45">Chatbot name</span>
-                  <input
-                    value={chatbotForm.name}
-                    onChange={(event) => setChatbotForm((form) => ({ ...form, name: event.target.value }))}
-                    disabled={isSavingChatbot}
-                    className={inputClass}
-                    placeholder="Support Assistant"
-                  />
-                </label>
-                <label className="block">
-                  <span className="text-xs font-medium text-white/45">Business name</span>
-                  <input
-                    value={chatbotForm.business_name}
-                    onChange={(event) => setChatbotForm((form) => ({ ...form, business_name: event.target.value }))}
-                    disabled={isSavingChatbot}
-                    className={inputClass}
-                    placeholder="Acme Stores"
-                  />
-                </label>
-                <label className="block">
-                  <span className="text-xs font-medium text-white/45">Industry</span>
-                  <input
-                    value={chatbotForm.industry}
-                    onChange={(event) => setChatbotForm((form) => ({ ...form, industry: event.target.value }))}
-                    disabled={isSavingChatbot}
-                    className={inputClass}
-                    placeholder="Ecommerce, healthcare, education"
-                  />
-                </label>
-                <label className="block">
-                  <span className="text-xs font-medium text-white/45">Website domain</span>
-                  <input
-                    value={chatbotForm.website_domain}
-                    onChange={(event) => setChatbotForm((form) => ({ ...form, website_domain: event.target.value }))}
-                    disabled={isSavingChatbot}
-                    className={inputClass}
-                    placeholder="example.com"
-                  />
-                </label>
-                <label className="block">
-                  <span className="text-xs font-medium text-white/45">Tone</span>
-                  <select
-                    value={chatbotForm.tone}
-                    onChange={(event) => setChatbotForm((form) => ({ ...form, tone: event.target.value }))}
-                    disabled={isSavingChatbot}
-                    className={inputClass}
-                  >
-                    <option value="friendly">Friendly</option>
-                    <option value="professional">Professional</option>
-                    <option value="concise">Concise</option>
-                    <option value="warm">Warm</option>
-                    <option value="luxury">Luxury</option>
-                  </select>
-                </label>
-                <label className="block">
-                  <span className="text-xs font-medium text-white/45">Status</span>
-                  <select
-                    value={chatbotForm.status}
-                    onChange={(event) => setChatbotForm((form) => ({ ...form, status: event.target.value as Chatbot['status'] }))}
-                    disabled={isSavingChatbot || isCreatingChatbot}
-                    className={inputClass}
-                  >
-                    <option value="draft">Draft</option>
-                    <option value="active">Active</option>
-                    <option value="paused">Paused</option>
-                    <option value="archived">Archived</option>
-                  </select>
-                </label>
-                <label className="block">
-                  <span className="text-xs font-medium text-white/45">Brand color</span>
-                  <div className="mt-2 flex gap-3">
-                    <input
-                      type="color"
-                      value={colorInputValue(chatbotForm.brand_color)}
-                      onChange={(event) => setChatbotForm((form) => ({ ...form, brand_color: event.target.value }))}
-                      disabled={isSavingChatbot}
-                      className="h-[46px] w-14 rounded-xl bg-[#101010] border border-white/10 p-1 disabled:opacity-50"
-                    />
-                    <input
-                      value={chatbotForm.brand_color}
-                      onChange={(event) => setChatbotForm((form) => ({ ...form, brand_color: event.target.value }))}
-                      disabled={isSavingChatbot}
-                      className={inputClass.replace('mt-2 ', '')}
-                      placeholder="#111111"
-                    />
-                  </div>
-                </label>
-                <label className="block">
-                  <span className="text-xs font-medium text-white/45">Handoff email</span>
-                  <input
-                    value={chatbotForm.handoff_email}
-                    onChange={(event) => setChatbotForm((form) => ({ ...form, handoff_email: event.target.value }))}
-                    disabled={isSavingChatbot}
-                    className={inputClass}
-                    placeholder="support@example.com"
-                  />
-                </label>
-                <label className="block md:col-span-2">
-                  <span className="text-xs font-medium text-white/45">Support goal</span>
-                  <textarea
-                    value={chatbotForm.support_goal}
-                    onChange={(event) => setChatbotForm((form) => ({ ...form, support_goal: event.target.value }))}
-                    disabled={isSavingChatbot}
-                    className={textareaClass}
-                    placeholder="Help customers choose products, answer delivery questions, and collect leads when support is offline."
-                  />
-                </label>
-                <label className="block md:col-span-2">
-                  <span className="text-xs font-medium text-white/45">Greeting message</span>
-                  <textarea
-                    value={chatbotForm.greeting_message}
-                    onChange={(event) => setChatbotForm((form) => ({ ...form, greeting_message: event.target.value }))}
-                    disabled={isSavingChatbot}
-                    className={textareaClass}
-                    placeholder="Hi! How can I help you today?"
-                  />
-                </label>
-                <div className="md:col-span-2 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                  <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white/45">
-                    {selectedChatbot ? `Created ${shortDate(selectedChatbot.created_at)}` : 'This will create a draft chatbot.'}
-                  </div>
-                  <button
-                    type="submit"
-                    disabled={isSavingChatbot || isLoading}
-                    className="inline-flex items-center justify-center gap-2 px-5 py-3 text-sm font-semibold text-vella-black bg-vella-white rounded-xl hover:bg-gray-200 transition-colors disabled:opacity-60"
-                  >
-                    {isSavingChatbot ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                    {isCreatingChatbot ? 'Create Chatbot' : 'Save Settings'}
-                  </button>
-                </div>
-              </form>
-            </motion.div>
-
-            <motion.aside
-              initial={{ opacity: 0, y: 18 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.65 }}
-              className="border border-white/10 bg-[#1c1c1c]/20 backdrop-blur-xl rounded-3xl p-6 shadow-2xl"
-            >
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-sm text-white/40">Profile</p>
-                  <h2 className="text-xl font-semibold text-white mt-1">Account</h2>
-                </div>
-                {isLoading && <Loader2 className="w-5 h-5 text-white/50 animate-spin" />}
-              </div>
-
-              <form className="mt-6 space-y-4" onSubmit={handleSaveProfile}>
-                <label className="block">
-                  <span className="text-xs font-medium text-white/45">First name</span>
-                  <input
-                    value={firstName}
-                    onChange={(event) => setFirstName(event.target.value)}
-                    disabled={isLoading}
-                    className={inputClass}
-                    placeholder="First name"
-                  />
-                </label>
-                <label className="block">
-                  <span className="text-xs font-medium text-white/45">Last name</span>
-                  <input
-                    value={lastName}
-                    onChange={(event) => setLastName(event.target.value)}
-                    disabled={isLoading}
-                    className={inputClass}
-                    placeholder="Last name"
-                  />
-                </label>
-                <label className="block">
-                  <span className="text-xs font-medium text-white/45">Email</span>
-                  <input
-                    value={email ?? ''}
-                    disabled
-                    className="mt-2 w-full bg-[#101010] border border-white/10 rounded-xl px-4 py-3 text-sm text-white/50 disabled:opacity-70"
-                  />
-                </label>
-
+          <div className="lg:hidden grid grid-cols-2 sm:grid-cols-4 gap-2">
+            {sidebarLinks.map((link) => {
+              const Icon = link.icon;
+              return (
                 <button
-                  type="submit"
-                  disabled={isLoading || isSavingProfile}
-                  className="w-full inline-flex items-center justify-center gap-2 px-5 py-3 text-sm font-semibold text-vella-black bg-vella-white rounded-xl hover:bg-gray-200 transition-colors disabled:opacity-60"
+                  key={link.id}
+                  type="button"
+                  onClick={() => handleChangeView(link.id)}
+                  className={`flex items-center justify-center gap-2 px-3 py-3 rounded-xl border text-sm ${
+                    activeView === link.id
+                      ? 'bg-white text-vella-black border-white'
+                      : 'bg-[#1c1c1c]/40 text-white/60 border-white/10'
+                  }`}
                 >
-                  {isSavingProfile ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                  Save Profile
+                  <Icon className="w-4 h-4" />
+                  {link.label}
                 </button>
-              </form>
+              );
+            })}
+          </div>
 
-              <div className="mt-6 rounded-2xl border border-white/10 bg-black/20 p-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center text-sm font-medium border border-white/10">
-                    {initials(profile, email)}
-                  </div>
+          {error && (
+            <div className="rounded-2xl border border-red-400/20 bg-red-500/10 p-4 text-sm text-red-100 flex gap-3">
+              <AlertCircle className="w-5 h-5 shrink-0" />
+              <div className="flex-1">
+                <p>{error}</p>
+                {accessToken && (
+                  <button
+                    type="button"
+                    onClick={handleRetry}
+                    className="mt-3 inline-flex items-center gap-2 text-xs font-medium text-white/80 hover:text-white"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    Retry
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
+          {activeView === 'overview' && (
+            <section className="grid grid-cols-1 xl:grid-cols-[1fr_360px] gap-6">
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5 }}
+                className="border border-white/10 bg-[#1c1c1c]/20 backdrop-blur-xl rounded-3xl p-6 md:p-8 shadow-2xl"
+              >
+                <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-5">
                   <div>
-                    <p className="text-sm font-medium text-white">{displayName}</p>
-                    <p className="text-xs text-white/35">{email ?? 'No email cached'}</p>
+                    <p className="text-sm text-white/40">{pageTitle}</p>
+                    <h1 className="text-3xl md:text-4xl font-semibold text-white mt-2">Welcome, {displayName}</h1>
+                    <p className="text-white/50 mt-3 max-w-2xl">
+                      See what exists, what is ready, and where to continue setting up Vella for your business.
+                    </p>
                   </div>
+                  <button
+                    type="button"
+                    onClick={handleStartNewChatbot}
+                    className="inline-flex items-center justify-center gap-2 px-5 py-3 text-sm font-medium text-vella-black bg-vella-white rounded-full transition-all hover:scale-105 active:scale-95 self-start disabled:opacity-60"
+                    disabled={isLoading}
+                  >
+                    <Plus className="w-4 h-4" />
+                    New Chatbot
+                  </button>
                 </div>
-              </div>
-            </motion.aside>
-          </section>
 
-          <section className="grid grid-cols-1 xl:grid-cols-[1fr_360px] gap-6">
-            <motion.div
-              initial={{ opacity: 0, y: 18 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.7 }}
-              className="border border-white/10 bg-[#1c1c1c]/20 backdrop-blur-xl rounded-3xl p-6 shadow-2xl"
-            >
-              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-                <div>
-                  <p className="text-sm text-white/40">Manual knowledge</p>
-                  <h2 className="text-2xl font-semibold text-white mt-1">Questions and answers</h2>
-                  <p className="text-sm text-white/45 mt-2 max-w-2xl">
-                    Add the answers your chatbot should already know. These stay editable while document upload is still locked.
-                  </p>
-                </div>
-                {isLoadingFaqs && <Loader2 className="w-5 h-5 text-white/50 animate-spin" />}
-              </div>
-
-              {!selectedChatbot ? (
-                <div className="mt-6 min-h-[220px] rounded-2xl border border-dashed border-white/10 bg-black/20 flex flex-col items-center justify-center text-center px-6">
-                  <FileText className="w-9 h-9 text-white/25" />
-                  <h3 className="text-lg font-medium text-white/75 mt-4">Create a chatbot first</h3>
-                  <p className="text-sm text-white/40 mt-2 max-w-md">Manual Q&A belongs to a specific chatbot, so the setup form above unlocks this workspace.</p>
-                </div>
-              ) : (
-                <>
-                  {faqError && (
-                    <div className="mt-5 rounded-2xl border border-red-400/20 bg-red-500/10 p-4 text-sm text-red-100 flex gap-3">
-                      <AlertCircle className="w-5 h-5 shrink-0" />
-                      <p>{faqError}</p>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-8">
+                  {overviewStats.map((stat) => (
+                    <div key={stat.label} className="rounded-2xl border border-white/10 bg-black/20 p-5">
+                      <p className="text-sm text-white/45">{stat.label}</p>
+                      <p className="text-3xl font-semibold text-white mt-2 capitalize">{stat.value}</p>
+                      <p className="text-xs text-white/35 mt-3">{stat.detail}</p>
                     </div>
-                  )}
+                  ))}
+                </div>
 
-                  <form className="mt-6 grid grid-cols-1 lg:grid-cols-[1fr_1fr_auto] gap-3 items-end" onSubmit={handleCreateFaq}>
-                    <label className="block">
-                      <span className="text-xs font-medium text-white/45">Question</span>
-                      <textarea
-                        value={faqForm.question}
-                        onChange={(event) => setFaqForm((form) => ({ ...form, question: event.target.value }))}
-                        disabled={isSavingFaq}
-                        className={`${textareaClass} min-h-[88px]`}
-                        placeholder="What are your delivery options?"
-                      />
-                    </label>
-                    <label className="block">
-                      <span className="text-xs font-medium text-white/45">Answer</span>
-                      <textarea
-                        value={faqForm.answer}
-                        onChange={(event) => setFaqForm((form) => ({ ...form, answer: event.target.value }))}
-                        disabled={isSavingFaq}
-                        className={`${textareaClass} min-h-[88px]`}
-                        placeholder="We deliver nationwide within 2-5 business days."
-                      />
-                    </label>
-                    <button
-                      type="submit"
-                      disabled={isSavingFaq}
-                      className="inline-flex items-center justify-center gap-2 px-5 py-3 text-sm font-semibold text-vella-black bg-vella-white rounded-xl hover:bg-gray-200 transition-colors disabled:opacity-60 lg:mb-0"
-                    >
-                      {isSavingFaq ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-                      Add
-                    </button>
-                  </form>
+                <div className="mt-8 rounded-2xl border border-white/10 bg-black/20 p-5">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm text-white/40">Created chatbots</p>
+                      <h2 className="text-xl font-semibold text-white mt-1">Current workspace</h2>
+                    </div>
+                    <span className="text-xs px-3 py-1.5 rounded-full border border-white/10 bg-white/5 text-white/50">
+                      {activeChatbots} active
+                    </span>
+                  </div>
 
-                  <div className="mt-6 space-y-3">
-                    {faqs.map((faq) => (
-                      <div key={faq.id} className="rounded-2xl border border-white/10 bg-black/20 p-4">
-                        {editingFaqId === faq.id ? (
-                          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-                            <textarea
-                              value={editingFaqForm.question}
-                              onChange={(event) => setEditingFaqForm((form) => ({ ...form, question: event.target.value }))}
-                              className={`${textareaClass} min-h-[84px]`}
-                            />
-                            <textarea
-                              value={editingFaqForm.answer}
-                              onChange={(event) => setEditingFaqForm((form) => ({ ...form, answer: event.target.value }))}
-                              className={`${textareaClass} min-h-[84px]`}
-                            />
-                            <div className="lg:col-span-2 flex flex-wrap gap-2 justify-end">
-                              <button
-                                type="button"
-                                onClick={() => setEditingFaqId(null)}
-                                className="px-4 py-2 text-sm font-medium text-white/70 border border-white/10 rounded-xl hover:bg-white/5"
-                              >
-                                Cancel
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleSaveFaqEdit(faq.id)}
-                                disabled={isSavingFaq}
-                                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-vella-black bg-vella-white rounded-xl hover:bg-gray-200 disabled:opacity-60"
-                              >
-                                <Save className="w-4 h-4" />
-                                Save
-                              </button>
-                            </div>
+                  <div className="mt-5 grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {chatbots.slice(0, 4).map((chatbot) => (
+                      <button
+                        key={chatbot.id}
+                        type="button"
+                        onClick={() => handleSelectChatbot(chatbot)}
+                        className="text-left rounded-2xl border border-white/10 bg-[#101010] p-4 hover:bg-white/5 transition-colors"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="font-medium text-white">{chatbot.name}</p>
+                            <p className="text-xs text-white/40 mt-1">{chatbot.business_name}</p>
                           </div>
-                        ) : (
-                          <div className="flex flex-col gap-4">
-                            <div className="flex items-start justify-between gap-4">
-                              <div>
-                                <p className="text-sm font-medium text-white">{faq.question}</p>
-                                <p className="text-sm text-white/50 mt-2">{faq.answer}</p>
-                              </div>
-                              <button
-                                type="button"
-                                onClick={() => handleToggleFaq(faq)}
-                                className={`shrink-0 inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-full border ${
-                                  faq.is_enabled
-                                    ? 'border-emerald-400/20 bg-emerald-500/10 text-emerald-200'
-                                    : 'border-white/10 bg-white/5 text-white/40'
-                                }`}
-                              >
-                                <CheckCircle2 className="w-3.5 h-3.5" />
-                                {faq.is_enabled ? 'Enabled' : 'Off'}
-                              </button>
-                            </div>
-                            <div className="flex items-center justify-between gap-3 text-xs text-white/35">
-                              <span>Updated {shortDate(faq.updated_at)}</span>
-                              <div className="flex gap-2">
-                                <button
-                                  type="button"
-                                  onClick={() => handleStartEditFaq(faq)}
-                                  className="px-3 py-1.5 rounded-lg border border-white/10 text-white/60 hover:bg-white/5 hover:text-white"
-                                >
-                                  Edit
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleDeleteFaq(faq)}
-                                  className="px-3 py-1.5 rounded-lg border border-red-400/20 text-red-100/80 hover:bg-red-500/10"
-                                >
-                                  Delete
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-                        )}
-                      </div>
+                          <span className={`text-[11px] px-2 py-1 rounded-full border capitalize ${statusClass(chatbot.status)}`}>
+                            {chatbot.status}
+                          </span>
+                        </div>
+                        <p className="text-xs text-white/30 mt-3">Updated {shortDate(chatbot.updated_at)}</p>
+                      </button>
                     ))}
 
-                    {faqs.length === 0 && !isLoadingFaqs && (
-                      <div className="rounded-2xl border border-dashed border-white/10 bg-black/20 p-6 text-center">
-                        <MessageSquare className="w-8 h-8 text-white/25 mx-auto" />
-                        <p className="text-sm text-white/55 mt-3">No Q&A pairs yet</p>
-                        <p className="text-xs text-white/35 mt-1">Seed common answers before training from documents.</p>
+                    {chatbots.length === 0 && !isLoading && (
+                      <div className="md:col-span-2 min-h-[220px] rounded-2xl border border-dashed border-white/10 bg-[#101010] flex flex-col items-center justify-center text-center px-6">
+                        <Bot className="w-9 h-9 text-white/25" />
+                        <h3 className="text-lg font-medium text-white/75 mt-4">No chatbot yet</h3>
+                        <p className="text-sm text-white/40 mt-2 max-w-md">Create the first support agent from the button above.</p>
                       </div>
                     )}
                   </div>
-                </>
-              )}
-            </motion.div>
+                </div>
+              </motion.div>
 
-            <motion.aside
+              <motion.aside
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6 }}
+                className="border border-white/10 bg-[#1c1c1c]/20 backdrop-blur-xl rounded-3xl p-6 shadow-2xl"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm text-white/40">Profile</p>
+                    <h2 className="text-xl font-semibold text-white mt-1">Account</h2>
+                  </div>
+                  {isLoading && <Loader2 className="w-5 h-5 text-white/50 animate-spin" />}
+                </div>
+
+                <form className="mt-6 space-y-4" onSubmit={handleSaveProfile}>
+                  <label className="block">
+                    <span className="text-xs font-medium text-white/45">First name</span>
+                    <input
+                      value={firstName}
+                      onChange={(event) => setFirstName(event.target.value)}
+                      disabled={isLoading}
+                      className={inputClass}
+                      placeholder="First name"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="text-xs font-medium text-white/45">Last name</span>
+                    <input
+                      value={lastName}
+                      onChange={(event) => setLastName(event.target.value)}
+                      disabled={isLoading}
+                      className={inputClass}
+                      placeholder="Last name"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="text-xs font-medium text-white/45">Email</span>
+                    <input
+                      value={email ?? ''}
+                      disabled
+                      className="mt-2 w-full bg-[#101010] border border-white/10 rounded-xl px-4 py-3 text-sm text-white/50 disabled:opacity-70"
+                    />
+                  </label>
+
+                  <button
+                    type="submit"
+                    disabled={isLoading || isSavingProfile}
+                    className="w-full inline-flex items-center justify-center gap-2 px-5 py-3 text-sm font-semibold text-vella-black bg-vella-white rounded-xl hover:bg-gray-200 transition-colors disabled:opacity-60"
+                  >
+                    {isSavingProfile ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                    Save Profile
+                  </button>
+                </form>
+              </motion.aside>
+            </section>
+          )}
+
+          {activeView === 'chatbots' && (
+            <section className="space-y-6">
+              <motion.div
+                initial={{ opacity: 0, y: 18 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5 }}
+                className="border border-white/10 bg-[#1c1c1c]/20 backdrop-blur-xl rounded-3xl p-6 md:p-8 shadow-2xl"
+              >
+                <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-5">
+                  <div>
+                    <p className="text-sm text-white/40">Chatbots</p>
+                    <h1 className="text-3xl md:text-4xl font-semibold text-white mt-2">Manage AI employees</h1>
+                    <p className="text-white/50 mt-3 max-w-2xl">
+                      Select a chatbot to configure settings and manual Q&A, or create a new one when you are ready.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleStartNewChatbot}
+                    disabled={isLoading}
+                    className="inline-flex items-center justify-center gap-2 px-5 py-3 text-sm font-medium text-vella-black bg-vella-white rounded-full transition-all hover:scale-105 active:scale-95 self-start disabled:opacity-60"
+                  >
+                    <Plus className="w-4 h-4" />
+                    New Chatbot
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 mt-8">
+                  {chatbots.map((chatbot) => (
+                    <button
+                      key={chatbot.id}
+                      type="button"
+                      onClick={() => handleSelectChatbot(chatbot)}
+                      className={`text-left rounded-2xl border p-4 transition-colors ${
+                        chatbot.id === selectedChatbotId && isChatbotEditorOpen
+                          ? 'border-white/30 bg-white/10'
+                          : 'border-white/10 bg-black/20 hover:bg-white/5'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="font-medium text-white">{chatbot.name}</p>
+                          <p className="text-xs text-white/40 mt-1">{chatbot.business_name}</p>
+                        </div>
+                        <span className={`text-[11px] px-2 py-1 rounded-full border capitalize ${statusClass(chatbot.status)}`}>
+                          {chatbot.status}
+                        </span>
+                      </div>
+                      <p className="text-xs text-white/30 mt-3">Updated {shortDate(chatbot.updated_at)}</p>
+                    </button>
+                  ))}
+
+                  {chatbots.length === 0 && !isLoading && (
+                    <div className="md:col-span-2 xl:col-span-3 min-h-[220px] rounded-2xl border border-dashed border-white/10 bg-black/20 flex flex-col items-center justify-center text-center px-6">
+                      <Bot className="w-9 h-9 text-white/25" />
+                      <h3 className="text-lg font-medium text-white/75 mt-4">No chatbot yet</h3>
+                      <p className="text-sm text-white/40 mt-2 max-w-md">Click New Chatbot to open the setup section.</p>
+                    </div>
+                  )}
+                </div>
+              </motion.div>
+
+              {!isChatbotEditorOpen ? (
+                <motion.div
+                  initial={{ opacity: 0, y: 18 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.55 }}
+                  className="min-h-[260px] rounded-3xl border border-dashed border-white/10 bg-[#1c1c1c]/20 backdrop-blur-xl flex flex-col items-center justify-center text-center p-8"
+                >
+                  <Settings className="w-10 h-10 text-white/25" />
+                  <h2 className="text-xl font-semibold text-white/75 mt-4">Nothing open</h2>
+                  <p className="text-sm text-white/40 mt-2 max-w-md">Select a chatbot to configure it, or use New Chatbot to reveal the creation form.</p>
+                </motion.div>
+              ) : (
+                <section className="grid grid-cols-1 xl:grid-cols-[1fr_360px] gap-6">
+                  <motion.div
+                    initial={{ opacity: 0, y: 18 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.6 }}
+                    className="border border-white/10 bg-[#1c1c1c]/20 backdrop-blur-xl rounded-3xl p-6 shadow-2xl"
+                  >
+                    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+                      <div>
+                        <p className="text-sm text-white/40">{isCreatingChatbot ? 'Create chatbot' : 'Chatbot settings'}</p>
+                        <h2 className="text-2xl font-semibold text-white mt-1">
+                          {isCreatingChatbot ? 'Business setup' : selectedChatbot?.name}
+                        </h2>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={handleCloseChatbotEditor}
+                          className="inline-flex items-center justify-center px-4 py-2.5 text-sm font-medium text-white/70 border border-white/10 rounded-xl hover:bg-white/5"
+                        >
+                          Close
+                        </button>
+                        {selectedChatbot && (
+                          <button
+                            type="button"
+                            onClick={handleDeleteChatbot}
+                            disabled={isSavingChatbot}
+                            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium text-red-100 border border-red-400/20 bg-red-500/10 rounded-xl hover:bg-red-500/20 disabled:opacity-60"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                            Delete
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {chatbotError && (
+                      <div className="mt-5 rounded-2xl border border-red-400/20 bg-red-500/10 p-4 text-sm text-red-100 flex gap-3">
+                        <AlertCircle className="w-5 h-5 shrink-0" />
+                        <p>{chatbotError}</p>
+                      </div>
+                    )}
+
+                    <form className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4" onSubmit={handleSaveChatbot}>
+                      <label className="block">
+                        <span className="text-xs font-medium text-white/45">Chatbot name</span>
+                        <input
+                          value={chatbotForm.name}
+                          onChange={(event) => setChatbotForm((form) => ({ ...form, name: event.target.value }))}
+                          disabled={isSavingChatbot}
+                          className={inputClass}
+                          placeholder="Support Assistant"
+                        />
+                      </label>
+                      <label className="block">
+                        <span className="text-xs font-medium text-white/45">Business name</span>
+                        <input
+                          value={chatbotForm.business_name}
+                          onChange={(event) => setChatbotForm((form) => ({ ...form, business_name: event.target.value }))}
+                          disabled={isSavingChatbot}
+                          className={inputClass}
+                          placeholder="Acme Stores"
+                        />
+                      </label>
+                      <label className="block">
+                        <span className="text-xs font-medium text-white/45">Industry</span>
+                        <input
+                          value={chatbotForm.industry}
+                          onChange={(event) => setChatbotForm((form) => ({ ...form, industry: event.target.value }))}
+                          disabled={isSavingChatbot}
+                          className={inputClass}
+                          placeholder="Ecommerce, healthcare, education"
+                        />
+                      </label>
+                      <label className="block">
+                        <span className="text-xs font-medium text-white/45">Website domain</span>
+                        <input
+                          value={chatbotForm.website_domain}
+                          onChange={(event) => setChatbotForm((form) => ({ ...form, website_domain: event.target.value }))}
+                          disabled={isSavingChatbot}
+                          className={inputClass}
+                          placeholder="example.com"
+                        />
+                      </label>
+                      <label className="block">
+                        <span className="text-xs font-medium text-white/45">Tone</span>
+                        <select
+                          value={chatbotForm.tone}
+                          onChange={(event) => setChatbotForm((form) => ({ ...form, tone: event.target.value }))}
+                          disabled={isSavingChatbot}
+                          className={inputClass}
+                        >
+                          <option value="friendly">Friendly</option>
+                          <option value="professional">Professional</option>
+                          <option value="concise">Concise</option>
+                          <option value="warm">Warm</option>
+                          <option value="luxury">Luxury</option>
+                        </select>
+                      </label>
+                      <label className="block">
+                        <span className="text-xs font-medium text-white/45">Status</span>
+                        <select
+                          value={chatbotForm.status}
+                          onChange={(event) => setChatbotForm((form) => ({ ...form, status: event.target.value as Chatbot['status'] }))}
+                          disabled={isSavingChatbot || isCreatingChatbot}
+                          className={inputClass}
+                        >
+                          <option value="draft">Draft</option>
+                          <option value="active">Active</option>
+                          <option value="paused">Paused</option>
+                          <option value="archived">Archived</option>
+                        </select>
+                      </label>
+                      <label className="block">
+                        <span className="text-xs font-medium text-white/45">Brand color</span>
+                        <div className="mt-2 flex gap-3">
+                          <input
+                            type="color"
+                            value={colorInputValue(chatbotForm.brand_color)}
+                            onChange={(event) => setChatbotForm((form) => ({ ...form, brand_color: event.target.value }))}
+                            disabled={isSavingChatbot}
+                            className="h-[46px] w-14 rounded-xl bg-[#101010] border border-white/10 p-1 disabled:opacity-50"
+                          />
+                          <input
+                            value={chatbotForm.brand_color}
+                            onChange={(event) => setChatbotForm((form) => ({ ...form, brand_color: event.target.value }))}
+                            disabled={isSavingChatbot}
+                            className={inputClass.replace('mt-2 ', '')}
+                            placeholder="#111111"
+                          />
+                        </div>
+                      </label>
+                      <label className="block">
+                        <span className="text-xs font-medium text-white/45">Handoff email</span>
+                        <input
+                          value={chatbotForm.handoff_email}
+                          onChange={(event) => setChatbotForm((form) => ({ ...form, handoff_email: event.target.value }))}
+                          disabled={isSavingChatbot}
+                          className={inputClass}
+                          placeholder="support@example.com"
+                        />
+                      </label>
+                      <label className="block md:col-span-2">
+                        <span className="text-xs font-medium text-white/45">Support goal</span>
+                        <textarea
+                          value={chatbotForm.support_goal}
+                          onChange={(event) => setChatbotForm((form) => ({ ...form, support_goal: event.target.value }))}
+                          disabled={isSavingChatbot}
+                          className={textareaClass}
+                          placeholder="Help customers choose products, answer delivery questions, and collect leads when support is offline."
+                        />
+                      </label>
+                      <label className="block md:col-span-2">
+                        <span className="text-xs font-medium text-white/45">Greeting message</span>
+                        <textarea
+                          value={chatbotForm.greeting_message}
+                          onChange={(event) => setChatbotForm((form) => ({ ...form, greeting_message: event.target.value }))}
+                          disabled={isSavingChatbot}
+                          className={textareaClass}
+                          placeholder="Hi! How can I help you today?"
+                        />
+                      </label>
+                      <div className="md:col-span-2 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                        <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white/45">
+                          {selectedChatbot ? `Created ${shortDate(selectedChatbot.created_at)}` : 'This will create a draft chatbot.'}
+                        </div>
+                        <button
+                          type="submit"
+                          disabled={isSavingChatbot || isLoading}
+                          className="inline-flex items-center justify-center gap-2 px-5 py-3 text-sm font-semibold text-vella-black bg-vella-white rounded-xl hover:bg-gray-200 transition-colors disabled:opacity-60"
+                        >
+                          {isSavingChatbot ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                          {isCreatingChatbot ? 'Create Chatbot' : 'Save Settings'}
+                        </button>
+                      </div>
+                    </form>
+                  </motion.div>
+
+                  <motion.aside
+                    initial={{ opacity: 0, y: 18 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.65 }}
+                    className="border border-white/10 bg-[#1c1c1c]/20 backdrop-blur-xl rounded-3xl p-6 shadow-2xl"
+                  >
+                    <p className="text-sm text-white/40">Preview</p>
+                    <h2 className="text-xl font-semibold text-white mt-1">Widget</h2>
+                    <div className="mt-6 rounded-2xl border border-white/10 bg-[#101010] p-4">
+                      <div className="flex items-center gap-3">
+                        <div
+                          className="w-9 h-9 rounded-full flex items-center justify-center border border-white/10"
+                          style={{ backgroundColor: colorInputValue(chatbotForm.brand_color) }}
+                        >
+                          <Bot className="w-4 h-4 text-white" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-white">{chatbotForm.name || 'Support Assistant'}</p>
+                          <p className="text-xs text-white/35">{chatbotForm.tone || 'friendly'} tone</p>
+                        </div>
+                      </div>
+                      <p className="mt-4 rounded-xl bg-white/5 px-4 py-3 text-sm text-white/65">
+                        {chatbotForm.greeting_message || 'Hi! How can I help you today?'}
+                      </p>
+                    </div>
+                  </motion.aside>
+
+                  {!isCreatingChatbot && selectedChatbot && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 18 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.7 }}
+                      className="xl:col-span-2 grid grid-cols-1 xl:grid-cols-[1fr_360px] gap-6"
+                    >
+                      <div className="border border-white/10 bg-[#1c1c1c]/20 backdrop-blur-xl rounded-3xl p-6 shadow-2xl">
+                        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+                          <div>
+                            <p className="text-sm text-white/40">Manual knowledge</p>
+                            <h2 className="text-2xl font-semibold text-white mt-1">Questions and answers</h2>
+                            <p className="text-sm text-white/45 mt-2 max-w-2xl">
+                              Add answers this chatbot should know before document training opens up.
+                            </p>
+                          </div>
+                          {isLoadingFaqs && <Loader2 className="w-5 h-5 text-white/50 animate-spin" />}
+                        </div>
+
+                        {faqError && (
+                          <div className="mt-5 rounded-2xl border border-red-400/20 bg-red-500/10 p-4 text-sm text-red-100 flex gap-3">
+                            <AlertCircle className="w-5 h-5 shrink-0" />
+                            <p>{faqError}</p>
+                          </div>
+                        )}
+
+                        <form className="mt-6 grid grid-cols-1 lg:grid-cols-[1fr_1fr_auto] gap-3 items-end" onSubmit={handleCreateFaq}>
+                          <label className="block">
+                            <span className="text-xs font-medium text-white/45">Question</span>
+                            <textarea
+                              value={faqForm.question}
+                              onChange={(event) => setFaqForm((form) => ({ ...form, question: event.target.value }))}
+                              disabled={isSavingFaq}
+                              className={`${textareaClass} min-h-[88px]`}
+                              placeholder="What are your delivery options?"
+                            />
+                          </label>
+                          <label className="block">
+                            <span className="text-xs font-medium text-white/45">Answer</span>
+                            <textarea
+                              value={faqForm.answer}
+                              onChange={(event) => setFaqForm((form) => ({ ...form, answer: event.target.value }))}
+                              disabled={isSavingFaq}
+                              className={`${textareaClass} min-h-[88px]`}
+                              placeholder="We deliver nationwide within 2-5 business days."
+                            />
+                          </label>
+                          <button
+                            type="submit"
+                            disabled={isSavingFaq}
+                            className="inline-flex items-center justify-center gap-2 px-5 py-3 text-sm font-semibold text-vella-black bg-vella-white rounded-xl hover:bg-gray-200 transition-colors disabled:opacity-60"
+                          >
+                            {isSavingFaq ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                            Add
+                          </button>
+                        </form>
+
+                        <div className="mt-6 space-y-3">
+                          {faqs.map((faq) => (
+                            <div key={faq.id} className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                              {editingFaqId === faq.id ? (
+                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                                  <textarea
+                                    value={editingFaqForm.question}
+                                    onChange={(event) => setEditingFaqForm((form) => ({ ...form, question: event.target.value }))}
+                                    className={`${textareaClass} min-h-[84px]`}
+                                  />
+                                  <textarea
+                                    value={editingFaqForm.answer}
+                                    onChange={(event) => setEditingFaqForm((form) => ({ ...form, answer: event.target.value }))}
+                                    className={`${textareaClass} min-h-[84px]`}
+                                  />
+                                  <div className="lg:col-span-2 flex flex-wrap gap-2 justify-end">
+                                    <button
+                                      type="button"
+                                      onClick={() => setEditingFaqId(null)}
+                                      className="px-4 py-2 text-sm font-medium text-white/70 border border-white/10 rounded-xl hover:bg-white/5"
+                                    >
+                                      Cancel
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleSaveFaqEdit(faq.id)}
+                                      disabled={isSavingFaq}
+                                      className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-vella-black bg-vella-white rounded-xl hover:bg-gray-200 disabled:opacity-60"
+                                    >
+                                      <Save className="w-4 h-4" />
+                                      Save
+                                    </button>
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="flex flex-col gap-4">
+                                  <div className="flex items-start justify-between gap-4">
+                                    <div>
+                                      <p className="text-sm font-medium text-white">{faq.question}</p>
+                                      <p className="text-sm text-white/50 mt-2">{faq.answer}</p>
+                                    </div>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleToggleFaq(faq)}
+                                      className={`shrink-0 inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-full border ${
+                                        faq.is_enabled
+                                          ? 'border-emerald-400/20 bg-emerald-500/10 text-emerald-200'
+                                          : 'border-white/10 bg-white/5 text-white/40'
+                                      }`}
+                                    >
+                                      <CheckCircle2 className="w-3.5 h-3.5" />
+                                      {faq.is_enabled ? 'Enabled' : 'Off'}
+                                    </button>
+                                  </div>
+                                  <div className="flex items-center justify-between gap-3 text-xs text-white/35">
+                                    <span>Updated {shortDate(faq.updated_at)}</span>
+                                    <div className="flex gap-2">
+                                      <button
+                                        type="button"
+                                        onClick={() => handleStartEditFaq(faq)}
+                                        className="px-3 py-1.5 rounded-lg border border-white/10 text-white/60 hover:bg-white/5 hover:text-white"
+                                      >
+                                        Edit
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleDeleteFaq(faq)}
+                                        className="px-3 py-1.5 rounded-lg border border-red-400/20 text-red-100/80 hover:bg-red-500/10"
+                                      >
+                                        Delete
+                                      </button>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          ))}
+
+                          {faqs.length === 0 && !isLoadingFaqs && (
+                            <div className="rounded-2xl border border-dashed border-white/10 bg-black/20 p-6 text-center">
+                              <MessageSquare className="w-8 h-8 text-white/25 mx-auto" />
+                              <p className="text-sm text-white/55 mt-3">No Q&A pairs yet</p>
+                              <p className="text-xs text-white/35 mt-1">Seed common answers before training from documents.</p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      <aside className="border border-white/10 bg-[#1c1c1c]/20 backdrop-blur-xl rounded-3xl p-6 shadow-2xl">
+                        <div>
+                          <p className="text-sm text-white/40">Knowledge upload</p>
+                          <h2 className="text-xl font-semibold text-white mt-1">Documents</h2>
+                        </div>
+
+                        <div className="mt-6 rounded-2xl border border-dashed border-white/10 bg-black/20 p-6 opacity-60">
+                          <div className="w-12 h-12 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center">
+                            <UploadCloud className="w-6 h-6 text-white/45" />
+                          </div>
+                          <h3 className="text-base font-medium text-white/75 mt-5">Upload disabled</h3>
+                          <p className="text-sm text-white/40 mt-2">
+                            PDF, DOCX, TXT, and crawler training will unlock when the knowledge module is connected.
+                          </p>
+                          <button
+                            type="button"
+                            disabled
+                            className="mt-5 w-full inline-flex items-center justify-center gap-2 px-5 py-3 text-sm font-semibold text-white/35 bg-white/5 border border-white/10 rounded-xl cursor-not-allowed"
+                          >
+                            <Lock className="w-4 h-4" />
+                            Coming Soon
+                          </button>
+                        </div>
+                      </aside>
+                    </motion.div>
+                  )}
+                </section>
+              )}
+            </section>
+          )}
+
+          {(activeView === 'analytics' || activeView === 'leads') && (
+            <motion.section
               initial={{ opacity: 0, y: 18 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.75 }}
-              className="border border-white/10 bg-[#1c1c1c]/20 backdrop-blur-xl rounded-3xl p-6 shadow-2xl"
+              transition={{ duration: 0.5 }}
+              className="min-h-[520px] border border-white/10 bg-[#1c1c1c]/20 backdrop-blur-xl rounded-3xl p-8 shadow-2xl flex flex-col items-center justify-center text-center"
             >
-              <div>
-                <p className="text-sm text-white/40">Knowledge upload</p>
-                <h2 className="text-xl font-semibold text-white mt-1">Documents</h2>
-              </div>
-
-              <div className="mt-6 rounded-2xl border border-dashed border-white/10 bg-black/20 p-6 opacity-60">
-                <div className="w-12 h-12 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center">
-                  <UploadCloud className="w-6 h-6 text-white/45" />
-                </div>
-                <h3 className="text-base font-medium text-white/75 mt-5">Upload disabled</h3>
-                <p className="text-sm text-white/40 mt-2">
-                  PDF, DOCX, TXT, and crawler training will unlock when the knowledge module is connected.
-                </p>
-                <button
-                  type="button"
-                  disabled
-                  className="mt-5 w-full inline-flex items-center justify-center gap-2 px-5 py-3 text-sm font-semibold text-white/35 bg-white/5 border border-white/10 rounded-xl cursor-not-allowed"
-                >
-                  <Lock className="w-4 h-4" />
-                  Coming Soon
-                </button>
-              </div>
-
-              <div className="mt-6 rounded-2xl border border-white/10 bg-black/20 p-5">
-                <p className="text-sm font-medium text-white/80">Widget preview</p>
-                <div className="mt-4 rounded-2xl border border-white/10 bg-[#101010] p-4">
-                  <div className="flex items-center gap-3">
-                    <div
-                      className="w-9 h-9 rounded-full flex items-center justify-center border border-white/10"
-                      style={{ backgroundColor: colorInputValue(chatbotForm.brand_color) }}
-                    >
-                      <Bot className="w-4 h-4 text-white" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-white">{chatbotForm.name || 'Support Assistant'}</p>
-                      <p className="text-xs text-white/35">{chatbotForm.tone || 'friendly'} tone</p>
-                    </div>
-                  </div>
-                  <p className="mt-4 rounded-xl bg-white/5 px-4 py-3 text-sm text-white/65">
-                    {chatbotForm.greeting_message || 'Hi! How can I help you today?'}
-                  </p>
-                </div>
-              </div>
-            </motion.aside>
-          </section>
+              {activeView === 'analytics' ? <BarChart2 className="w-12 h-12 text-white/25" /> : <Users className="w-12 h-12 text-white/25" />}
+              <h1 className="text-2xl font-semibold text-white mt-5">{pageTitle}</h1>
+              <p className="text-sm text-white/45 mt-2 max-w-md">
+                This page will populate when widget conversations and lead capture are wired into the backend.
+              </p>
+            </motion.section>
+          )}
         </main>
       </div>
     </div>
