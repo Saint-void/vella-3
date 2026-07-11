@@ -4,18 +4,37 @@ import {
   AlertCircle,
   BarChart2,
   Bot,
+  CheckCircle2,
+  FileText,
   LayoutDashboard,
   Loader2,
+  Lock,
   LogOut,
   MessageSquare,
   Plus,
   RefreshCw,
   Save,
   Settings,
+  Trash2,
+  UploadCloud,
   Users,
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { apiRequest } from '../lib/api';
+import {
+  Chatbot,
+  ChatbotFAQ,
+  ChatbotFAQPayload,
+  ChatbotPayload,
+  createChatbot,
+  createChatbotFaq,
+  deleteChatbot,
+  deleteChatbotFaq,
+  listChatbotFaqs,
+  listChatbots,
+  updateChatbot,
+  updateChatbotFaq,
+} from '../lib/chatbots';
 import { clearAuthSession, getAccessToken, getAuthEmail } from '../lib/authSession';
 
 type Profile = {
@@ -25,24 +44,102 @@ type Profile = {
   created_at: string;
 };
 
+type ChatbotForm = {
+  name: string;
+  business_name: string;
+  industry: string;
+  support_goal: string;
+  website_domain: string;
+  tone: string;
+  greeting_message: string;
+  brand_color: string;
+  logo_url: string;
+  handoff_email: string;
+  status: Chatbot['status'];
+};
+
 const sidebarLinks = [
-  { icon: LayoutDashboard, label: 'Overview', active: true },
-  { icon: MessageSquare, label: 'Chatbots', active: false },
+  { icon: LayoutDashboard, label: 'Overview', active: false },
+  { icon: MessageSquare, label: 'Chatbots', active: true },
   { icon: BarChart2, label: 'Analytics', active: false },
   { icon: Users, label: 'Leads', active: false },
 ];
 
-const stats = [
-  { label: 'Messages', value: '0', detail: 'No live chatbot traffic yet' },
-  { label: 'Leads', value: '0', detail: 'Captured leads will appear here' },
-  { label: 'Chatbots', value: '0', detail: 'Create your first AI employee' },
-];
+const inputClass =
+  'mt-2 w-full bg-[#101010] border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder-white/30 focus:outline-none focus:border-white/30 disabled:opacity-50';
+const textareaClass = `${inputClass} min-h-[104px] resize-y`;
+
+const emptyChatbotForm: ChatbotForm = {
+  name: '',
+  business_name: '',
+  industry: '',
+  support_goal: '',
+  website_domain: '',
+  tone: 'friendly',
+  greeting_message: 'Hi! How can I help you today?',
+  brand_color: '#111111',
+  logo_url: '',
+  handoff_email: '',
+  status: 'draft',
+};
+
+const emptyFaqForm: ChatbotFAQPayload = {
+  question: '',
+  answer: '',
+  is_enabled: true,
+};
 
 function initials(profile: Profile | null, email?: string) {
   const first = profile?.first_name?.trim()[0];
   const last = profile?.last_name?.trim()[0];
   const fallback = email?.trim()[0] ?? 'U';
   return `${first ?? fallback}${last ?? ''}`.toUpperCase();
+}
+
+function chatbotToForm(chatbot: Chatbot): ChatbotForm {
+  return {
+    name: chatbot.name,
+    business_name: chatbot.business_name,
+    industry: chatbot.industry ?? '',
+    support_goal: chatbot.support_goal ?? '',
+    website_domain: chatbot.website_domain ?? '',
+    tone: chatbot.tone,
+    greeting_message: chatbot.greeting_message,
+    brand_color: chatbot.brand_color,
+    logo_url: chatbot.logo_url ?? '',
+    handoff_email: chatbot.handoff_email ?? '',
+    status: chatbot.status,
+  };
+}
+
+function chatbotPayloadFromForm(form: ChatbotForm): ChatbotPayload {
+  return {
+    name: form.name.trim(),
+    business_name: form.business_name.trim(),
+    industry: form.industry.trim() || null,
+    support_goal: form.support_goal.trim() || null,
+    website_domain: form.website_domain.trim() || null,
+    tone: form.tone.trim() || 'friendly',
+    greeting_message: form.greeting_message.trim(),
+    brand_color: form.brand_color.trim() || '#111111',
+    logo_url: form.logo_url.trim() || null,
+    handoff_email: form.handoff_email.trim() || null,
+  };
+}
+
+function statusClass(status: Chatbot['status']) {
+  if (status === 'active') return 'border-emerald-400/20 bg-emerald-500/10 text-emerald-200';
+  if (status === 'paused') return 'border-amber-400/20 bg-amber-500/10 text-amber-100';
+  if (status === 'archived') return 'border-white/10 bg-white/5 text-white/45';
+  return 'border-sky-400/20 bg-sky-500/10 text-sky-100';
+}
+
+function shortDate(date: string) {
+  return new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' }).format(new Date(date));
+}
+
+function colorInputValue(color: string) {
+  return /^#[0-9A-Fa-f]{6}$/.test(color) ? color : '#111111';
 }
 
 export function Dashboard() {
@@ -52,16 +149,47 @@ export function Dashboard() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
+  const [chatbots, setChatbots] = useState<Chatbot[]>([]);
+  const [selectedChatbotId, setSelectedChatbotId] = useState<string | null>(null);
+  const [chatbotForm, setChatbotForm] = useState<ChatbotForm>(emptyChatbotForm);
+  const [faqs, setFaqs] = useState<ChatbotFAQ[]>([]);
+  const [faqForm, setFaqForm] = useState<ChatbotFAQPayload>(emptyFaqForm);
+  const [editingFaqId, setEditingFaqId] = useState<string | null>(null);
+  const [editingFaqForm, setEditingFaqForm] = useState<ChatbotFAQPayload>(emptyFaqForm);
   const [isLoading, setIsLoading] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
+  const [isLoadingFaqs, setIsLoadingFaqs] = useState(false);
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [isSavingChatbot, setIsSavingChatbot] = useState(false);
+  const [isSavingFaq, setIsSavingFaq] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [chatbotError, setChatbotError] = useState<string | null>(null);
+  const [faqError, setFaqError] = useState<string | null>(null);
+
+  const selectedChatbot = chatbots.find((chatbot) => chatbot.id === selectedChatbotId) ?? null;
+  const displayName = [profile?.first_name, profile?.last_name].filter(Boolean).join(' ') || 'New founder';
+  const isCreatingChatbot = selectedChatbot === null;
 
   const loadProfile = async (token: string) => {
-    setError(null);
     const data = await apiRequest<Profile>('/api/v1/auth/me', token);
     setProfile(data);
     setFirstName(data.first_name ?? '');
     setLastName(data.last_name ?? '');
+    return data;
+  };
+
+  const loadChatbots = async (token: string) => {
+    const rows = await listChatbots(token);
+    setChatbots(rows);
+
+    if (rows.length > 0) {
+      setSelectedChatbotId(rows[0].id);
+      setChatbotForm(chatbotToForm(rows[0]));
+    } else {
+      setSelectedChatbotId(null);
+      setChatbotForm(emptyChatbotForm);
+    }
+
+    return rows;
   };
 
   useEffect(() => {
@@ -81,9 +209,9 @@ export function Dashboard() {
       setEmail(getAuthEmail());
 
       try {
-        await loadProfile(token);
+        await Promise.all([loadProfile(token), loadChatbots(token)]);
       } catch (err) {
-        if (isMounted) setError(err instanceof Error ? err.message : 'Could not load your profile.');
+        if (isMounted) setError(err instanceof Error ? err.message : 'Could not load your dashboard.');
       } finally {
         if (isMounted) setIsLoading(false);
       }
@@ -96,11 +224,57 @@ export function Dashboard() {
     };
   }, [navigate]);
 
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadFaqs() {
+      if (!accessToken || !selectedChatbotId) {
+        setFaqs([]);
+        return;
+      }
+
+      setIsLoadingFaqs(true);
+      setFaqError(null);
+
+      try {
+        const rows = await listChatbotFaqs(accessToken, selectedChatbotId);
+        if (isMounted) setFaqs(rows);
+      } catch (err) {
+        if (isMounted) setFaqError(err instanceof Error ? err.message : 'Could not load Q&A pairs.');
+      } finally {
+        if (isMounted) setIsLoadingFaqs(false);
+      }
+    }
+
+    loadFaqs();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [accessToken, selectedChatbotId]);
+
+  const handleSelectChatbot = (chatbot: Chatbot) => {
+    setSelectedChatbotId(chatbot.id);
+    setChatbotForm(chatbotToForm(chatbot));
+    setChatbotError(null);
+    setFaqError(null);
+    setEditingFaqId(null);
+  };
+
+  const handleStartNewChatbot = () => {
+    setSelectedChatbotId(null);
+    setChatbotForm(emptyChatbotForm);
+    setFaqs([]);
+    setChatbotError(null);
+    setFaqError(null);
+    setEditingFaqId(null);
+  };
+
   const handleSaveProfile = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!accessToken) return;
 
-    setIsSaving(true);
+    setIsSavingProfile(true);
     setError(null);
 
     try {
@@ -117,8 +291,169 @@ export function Dashboard() {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not save your profile.');
     } finally {
-      setIsSaving(false);
+      setIsSavingProfile(false);
     }
+  };
+
+  const handleSaveChatbot = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!accessToken) return;
+
+    const payload = chatbotPayloadFromForm(chatbotForm);
+    if (!payload.name || !payload.business_name || !payload.greeting_message) {
+      setChatbotError('Chatbot name, business name, and greeting message are required.');
+      return;
+    }
+
+    setIsSavingChatbot(true);
+    setChatbotError(null);
+
+    try {
+      if (selectedChatbot) {
+        const updated = await updateChatbot(accessToken, selectedChatbot.id, {
+          ...payload,
+          status: chatbotForm.status,
+        });
+        setChatbots((current) => current.map((chatbot) => (chatbot.id === updated.id ? updated : chatbot)));
+        setChatbotForm(chatbotToForm(updated));
+        return;
+      }
+
+      const created = await createChatbot(accessToken, payload);
+      setChatbots((current) => [created, ...current]);
+      setSelectedChatbotId(created.id);
+      setChatbotForm(chatbotToForm(created));
+    } catch (err) {
+      setChatbotError(err instanceof Error ? err.message : 'Could not save chatbot.');
+    } finally {
+      setIsSavingChatbot(false);
+    }
+  };
+
+  const handleDeleteChatbot = async () => {
+    if (!accessToken || !selectedChatbot) return;
+    if (!window.confirm(`Delete ${selectedChatbot.name}? This removes its manual Q&A too.`)) return;
+
+    setIsSavingChatbot(true);
+    setChatbotError(null);
+
+    try {
+      await deleteChatbot(accessToken, selectedChatbot.id);
+      const remaining = chatbots.filter((chatbot) => chatbot.id !== selectedChatbot.id);
+      setChatbots(remaining);
+      if (remaining[0]) {
+        setSelectedChatbotId(remaining[0].id);
+        setChatbotForm(chatbotToForm(remaining[0]));
+      } else {
+        setSelectedChatbotId(null);
+        setChatbotForm(emptyChatbotForm);
+        setFaqs([]);
+      }
+    } catch (err) {
+      setChatbotError(err instanceof Error ? err.message : 'Could not delete chatbot.');
+    } finally {
+      setIsSavingChatbot(false);
+    }
+  };
+
+  const handleCreateFaq = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!accessToken || !selectedChatbot) return;
+
+    const payload = {
+      question: faqForm.question.trim(),
+      answer: faqForm.answer.trim(),
+      is_enabled: faqForm.is_enabled,
+    };
+
+    if (!payload.question || !payload.answer) {
+      setFaqError('Question and answer are required.');
+      return;
+    }
+
+    setIsSavingFaq(true);
+    setFaqError(null);
+
+    try {
+      const created = await createChatbotFaq(accessToken, selectedChatbot.id, payload);
+      setFaqs((current) => [created, ...current]);
+      setFaqForm(emptyFaqForm);
+    } catch (err) {
+      setFaqError(err instanceof Error ? err.message : 'Could not add Q&A.');
+    } finally {
+      setIsSavingFaq(false);
+    }
+  };
+
+  const handleStartEditFaq = (faq: ChatbotFAQ) => {
+    setEditingFaqId(faq.id);
+    setEditingFaqForm({
+      question: faq.question,
+      answer: faq.answer,
+      is_enabled: faq.is_enabled,
+    });
+  };
+
+  const handleSaveFaqEdit = async (faqId: string) => {
+    if (!accessToken || !selectedChatbot) return;
+
+    const payload = {
+      question: editingFaqForm.question.trim(),
+      answer: editingFaqForm.answer.trim(),
+      is_enabled: editingFaqForm.is_enabled,
+    };
+
+    if (!payload.question || !payload.answer) {
+      setFaqError('Question and answer are required.');
+      return;
+    }
+
+    setIsSavingFaq(true);
+    setFaqError(null);
+
+    try {
+      const updated = await updateChatbotFaq(accessToken, selectedChatbot.id, faqId, payload);
+      setFaqs((current) => current.map((faq) => (faq.id === updated.id ? updated : faq)));
+      setEditingFaqId(null);
+      setEditingFaqForm(emptyFaqForm);
+    } catch (err) {
+      setFaqError(err instanceof Error ? err.message : 'Could not update Q&A.');
+    } finally {
+      setIsSavingFaq(false);
+    }
+  };
+
+  const handleToggleFaq = async (faq: ChatbotFAQ) => {
+    if (!accessToken || !selectedChatbot) return;
+
+    try {
+      const updated = await updateChatbotFaq(accessToken, selectedChatbot.id, faq.id, {
+        is_enabled: !faq.is_enabled,
+      });
+      setFaqs((current) => current.map((row) => (row.id === updated.id ? updated : row)));
+    } catch (err) {
+      setFaqError(err instanceof Error ? err.message : 'Could not update Q&A.');
+    }
+  };
+
+  const handleDeleteFaq = async (faq: ChatbotFAQ) => {
+    if (!accessToken || !selectedChatbot) return;
+
+    try {
+      await deleteChatbotFaq(accessToken, selectedChatbot.id, faq.id);
+      setFaqs((current) => current.filter((row) => row.id !== faq.id));
+    } catch (err) {
+      setFaqError(err instanceof Error ? err.message : 'Could not delete Q&A.');
+    }
+  };
+
+  const handleRetry = () => {
+    if (!accessToken) return;
+    setIsLoading(true);
+    setError(null);
+    Promise.all([loadProfile(accessToken), loadChatbots(accessToken)])
+      .catch((err) => setError(err instanceof Error ? err.message : 'Could not load your dashboard.'))
+      .finally(() => setIsLoading(false));
   };
 
   const handleSignOut = async () => {
@@ -126,7 +461,11 @@ export function Dashboard() {
     navigate('/login', { replace: true });
   };
 
-  const displayName = [profile?.first_name, profile?.last_name].filter(Boolean).join(' ') || 'New founder';
+  const stats = [
+    { label: 'Chatbots', value: String(chatbots.length), detail: chatbots.length === 1 ? 'One AI employee in setup' : 'AI employees in setup' },
+    { label: 'Manual Q&A', value: String(faqs.length), detail: selectedChatbot ? 'For the selected chatbot' : 'Create a chatbot first' },
+    { label: 'Status', value: selectedChatbot?.status ?? 'Draft', detail: selectedChatbot ? 'Current chatbot state' : 'Ready for onboarding' },
+  ];
 
   return (
     <div className="min-h-screen bg-vella-black text-vella-white flex flex-col w-full relative">
@@ -139,7 +478,7 @@ export function Dashboard() {
         className="fixed top-4 md:top-6 left-0 right-0 z-50 w-[calc(100%-2rem)] max-w-[1400px] mx-auto flex items-center justify-between px-4 md:px-6 py-2.5 md:py-3.5 backdrop-blur-md bg-vella-darker/60 border border-white/10 rounded-full shadow-2xl"
       >
         <Link to="/" className="flex items-center gap-2 text-2xl font-bold text-vella-white">
-          <img src="/logo.png" alt="Vella Logo" className="h-10 w-auto object-contain brightness-0 invert" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+          <img src="/logo.png" alt="Vella Logo" className="h-10 w-auto object-contain brightness-0 invert" onError={(event) => { event.currentTarget.style.display = 'none'; }} />
         </Link>
 
         <div className="flex items-center gap-2 sm:gap-4">
@@ -187,78 +526,292 @@ export function Dashboard() {
         </motion.aside>
 
         <main className="flex-1 flex flex-col min-h-[620px] gap-6">
-          <section className="grid grid-cols-1 xl:grid-cols-[1fr_360px] gap-6">
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
+          <motion.section
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+            className="border border-white/10 bg-[#1c1c1c]/20 backdrop-blur-xl rounded-3xl p-6 md:p-8 shadow-2xl"
+          >
+            <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-5">
+              <div>
+                <p className="text-sm text-white/40">Dashboard</p>
+                <h1 className="text-3xl md:text-4xl font-semibold text-white mt-2">Welcome, {displayName}</h1>
+                <p className="text-white/50 mt-3 max-w-2xl">
+                  Set up the customer support agent, tune its brand details, and seed it with manual Q&A before document training opens up.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={handleStartNewChatbot}
+                className="inline-flex items-center justify-center gap-2 px-5 py-3 text-sm font-medium text-vella-black bg-vella-white rounded-full transition-all hover:scale-105 active:scale-95 self-start disabled:opacity-60"
+                disabled={isLoading}
+              >
+                <Plus className="w-4 h-4" />
+                New Chatbot
+              </button>
+            </div>
+
+            {error && (
+              <div className="mt-6 rounded-2xl border border-red-400/20 bg-red-500/10 p-4 text-sm text-red-100 flex gap-3">
+                <AlertCircle className="w-5 h-5 shrink-0" />
+                <div className="flex-1">
+                  <p>{error}</p>
+                  {accessToken && (
+                    <button
+                      type="button"
+                      onClick={handleRetry}
+                      className="mt-3 inline-flex items-center gap-2 text-xs font-medium text-white/80 hover:text-white"
+                    >
+                      <RefreshCw className="w-3.5 h-3.5" />
+                      Retry
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-8">
+              {stats.map((stat) => (
+                <div key={stat.label} className="rounded-2xl border border-white/10 bg-black/20 p-5">
+                  <p className="text-sm text-white/45">{stat.label}</p>
+                  <p className="text-3xl font-semibold text-white mt-2 capitalize">{stat.value}</p>
+                  <p className="text-xs text-white/35 mt-3">{stat.detail}</p>
+                </div>
+              ))}
+            </div>
+          </motion.section>
+
+          <section className="grid grid-cols-1 xl:grid-cols-[320px_1fr_360px] gap-6">
+            <motion.aside
+              initial={{ opacity: 0, y: 18 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5 }}
-              className="border border-white/10 bg-[#1c1c1c]/20 backdrop-blur-xl rounded-3xl p-6 md:p-8 shadow-2xl"
+              transition={{ duration: 0.55 }}
+              className="border border-white/10 bg-[#1c1c1c]/20 backdrop-blur-xl rounded-3xl p-5 shadow-2xl"
             >
-              <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-5">
+              <div className="flex items-center justify-between gap-3">
                 <div>
-                  <p className="text-sm text-white/40">Dashboard</p>
-                  <h1 className="text-3xl md:text-4xl font-semibold text-white mt-2">Welcome, {displayName}</h1>
-                  <p className="text-white/50 mt-3 max-w-xl">
-                    Your backend profile is connected. This is where chatbots, conversations, and customer insights can grow next.
-                  </p>
+                  <p className="text-sm text-white/40">Chatbots</p>
+                  <h2 className="text-xl font-semibold text-white mt-1">Workspace</h2>
                 </div>
-                <button className="inline-flex items-center justify-center gap-2 px-5 py-3 text-sm font-medium text-vella-black bg-vella-white rounded-full transition-all hover:scale-105 active:scale-95 self-start">
-                  <Plus className="w-4 h-4" />
-                  Create Chatbot
-                </button>
+                {isLoading && <Loader2 className="w-5 h-5 text-white/50 animate-spin" />}
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-8">
-                {stats.map((stat) => (
-                  <div key={stat.label} className="rounded-2xl border border-white/10 bg-black/20 p-5">
-                    <p className="text-sm text-white/45">{stat.label}</p>
-                    <p className="text-3xl font-semibold text-white mt-2">{stat.value}</p>
-                    <p className="text-xs text-white/35 mt-3">{stat.detail}</p>
-                  </div>
+              <div className="mt-5 space-y-3">
+                {chatbots.map((chatbot) => (
+                  <button
+                    key={chatbot.id}
+                    type="button"
+                    onClick={() => handleSelectChatbot(chatbot)}
+                    className={`w-full text-left rounded-2xl border p-4 transition-colors ${
+                      chatbot.id === selectedChatbotId
+                        ? 'border-white/30 bg-white/10'
+                        : 'border-white/10 bg-black/20 hover:bg-white/5'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="font-medium text-white">{chatbot.name}</p>
+                        <p className="text-xs text-white/40 mt-1">{chatbot.business_name}</p>
+                      </div>
+                      <span className={`text-[11px] px-2 py-1 rounded-full border capitalize ${statusClass(chatbot.status)}`}>
+                        {chatbot.status}
+                      </span>
+                    </div>
+                    <p className="text-xs text-white/30 mt-3">Updated {shortDate(chatbot.updated_at)}</p>
+                  </button>
                 ))}
+
+                {chatbots.length === 0 && !isLoading && (
+                  <div className="rounded-2xl border border-dashed border-white/10 bg-black/20 p-5 text-center">
+                    <Bot className="w-8 h-8 text-white/25 mx-auto" />
+                    <p className="text-sm text-white/55 mt-3">No chatbot yet</p>
+                    <p className="text-xs text-white/35 mt-1">Create the first support agent from the setup form.</p>
+                  </div>
+                )}
+              </div>
+            </motion.aside>
+
+            <motion.div
+              initial={{ opacity: 0, y: 18 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6 }}
+              className="border border-white/10 bg-[#1c1c1c]/20 backdrop-blur-xl rounded-3xl p-6 shadow-2xl"
+            >
+              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+                <div>
+                  <p className="text-sm text-white/40">{isCreatingChatbot ? 'Create chatbot' : 'Chatbot settings'}</p>
+                  <h2 className="text-2xl font-semibold text-white mt-1">
+                    {isCreatingChatbot ? 'Business setup' : selectedChatbot?.name}
+                  </h2>
+                </div>
+                {selectedChatbot && (
+                  <button
+                    type="button"
+                    onClick={handleDeleteChatbot}
+                    disabled={isSavingChatbot}
+                    className="inline-flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium text-red-100 border border-red-400/20 bg-red-500/10 rounded-xl hover:bg-red-500/20 disabled:opacity-60"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    Delete
+                  </button>
+                )}
               </div>
 
-              <div className="mt-8 min-h-[220px] rounded-2xl border border-white/10 bg-black/20 flex flex-col items-center justify-center text-center px-6">
-                <div className="w-16 h-16 rounded-full bg-white/5 border border-white/10 flex items-center justify-center mb-5">
-                  <Bot className="w-7 h-7 text-white/30" />
+              {chatbotError && (
+                <div className="mt-5 rounded-2xl border border-red-400/20 bg-red-500/10 p-4 text-sm text-red-100 flex gap-3">
+                  <AlertCircle className="w-5 h-5 shrink-0" />
+                  <p>{chatbotError}</p>
                 </div>
-                <h2 className="text-xl font-medium text-white/80">No chatbot here yet</h2>
-                <p className="text-sm text-white/40 mt-2 max-w-md">Create your first AI employee when you are ready to connect knowledge, channels, and analytics.</p>
-              </div>
+              )}
+
+              <form className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4" onSubmit={handleSaveChatbot}>
+                <label className="block">
+                  <span className="text-xs font-medium text-white/45">Chatbot name</span>
+                  <input
+                    value={chatbotForm.name}
+                    onChange={(event) => setChatbotForm((form) => ({ ...form, name: event.target.value }))}
+                    disabled={isSavingChatbot}
+                    className={inputClass}
+                    placeholder="Support Assistant"
+                  />
+                </label>
+                <label className="block">
+                  <span className="text-xs font-medium text-white/45">Business name</span>
+                  <input
+                    value={chatbotForm.business_name}
+                    onChange={(event) => setChatbotForm((form) => ({ ...form, business_name: event.target.value }))}
+                    disabled={isSavingChatbot}
+                    className={inputClass}
+                    placeholder="Acme Stores"
+                  />
+                </label>
+                <label className="block">
+                  <span className="text-xs font-medium text-white/45">Industry</span>
+                  <input
+                    value={chatbotForm.industry}
+                    onChange={(event) => setChatbotForm((form) => ({ ...form, industry: event.target.value }))}
+                    disabled={isSavingChatbot}
+                    className={inputClass}
+                    placeholder="Ecommerce, healthcare, education"
+                  />
+                </label>
+                <label className="block">
+                  <span className="text-xs font-medium text-white/45">Website domain</span>
+                  <input
+                    value={chatbotForm.website_domain}
+                    onChange={(event) => setChatbotForm((form) => ({ ...form, website_domain: event.target.value }))}
+                    disabled={isSavingChatbot}
+                    className={inputClass}
+                    placeholder="example.com"
+                  />
+                </label>
+                <label className="block">
+                  <span className="text-xs font-medium text-white/45">Tone</span>
+                  <select
+                    value={chatbotForm.tone}
+                    onChange={(event) => setChatbotForm((form) => ({ ...form, tone: event.target.value }))}
+                    disabled={isSavingChatbot}
+                    className={inputClass}
+                  >
+                    <option value="friendly">Friendly</option>
+                    <option value="professional">Professional</option>
+                    <option value="concise">Concise</option>
+                    <option value="warm">Warm</option>
+                    <option value="luxury">Luxury</option>
+                  </select>
+                </label>
+                <label className="block">
+                  <span className="text-xs font-medium text-white/45">Status</span>
+                  <select
+                    value={chatbotForm.status}
+                    onChange={(event) => setChatbotForm((form) => ({ ...form, status: event.target.value as Chatbot['status'] }))}
+                    disabled={isSavingChatbot || isCreatingChatbot}
+                    className={inputClass}
+                  >
+                    <option value="draft">Draft</option>
+                    <option value="active">Active</option>
+                    <option value="paused">Paused</option>
+                    <option value="archived">Archived</option>
+                  </select>
+                </label>
+                <label className="block">
+                  <span className="text-xs font-medium text-white/45">Brand color</span>
+                  <div className="mt-2 flex gap-3">
+                    <input
+                      type="color"
+                      value={colorInputValue(chatbotForm.brand_color)}
+                      onChange={(event) => setChatbotForm((form) => ({ ...form, brand_color: event.target.value }))}
+                      disabled={isSavingChatbot}
+                      className="h-[46px] w-14 rounded-xl bg-[#101010] border border-white/10 p-1 disabled:opacity-50"
+                    />
+                    <input
+                      value={chatbotForm.brand_color}
+                      onChange={(event) => setChatbotForm((form) => ({ ...form, brand_color: event.target.value }))}
+                      disabled={isSavingChatbot}
+                      className={inputClass.replace('mt-2 ', '')}
+                      placeholder="#111111"
+                    />
+                  </div>
+                </label>
+                <label className="block">
+                  <span className="text-xs font-medium text-white/45">Handoff email</span>
+                  <input
+                    value={chatbotForm.handoff_email}
+                    onChange={(event) => setChatbotForm((form) => ({ ...form, handoff_email: event.target.value }))}
+                    disabled={isSavingChatbot}
+                    className={inputClass}
+                    placeholder="support@example.com"
+                  />
+                </label>
+                <label className="block md:col-span-2">
+                  <span className="text-xs font-medium text-white/45">Support goal</span>
+                  <textarea
+                    value={chatbotForm.support_goal}
+                    onChange={(event) => setChatbotForm((form) => ({ ...form, support_goal: event.target.value }))}
+                    disabled={isSavingChatbot}
+                    className={textareaClass}
+                    placeholder="Help customers choose products, answer delivery questions, and collect leads when support is offline."
+                  />
+                </label>
+                <label className="block md:col-span-2">
+                  <span className="text-xs font-medium text-white/45">Greeting message</span>
+                  <textarea
+                    value={chatbotForm.greeting_message}
+                    onChange={(event) => setChatbotForm((form) => ({ ...form, greeting_message: event.target.value }))}
+                    disabled={isSavingChatbot}
+                    className={textareaClass}
+                    placeholder="Hi! How can I help you today?"
+                  />
+                </label>
+                <div className="md:col-span-2 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                  <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white/45">
+                    {selectedChatbot ? `Created ${shortDate(selectedChatbot.created_at)}` : 'This will create a draft chatbot.'}
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={isSavingChatbot || isLoading}
+                    className="inline-flex items-center justify-center gap-2 px-5 py-3 text-sm font-semibold text-vella-black bg-vella-white rounded-xl hover:bg-gray-200 transition-colors disabled:opacity-60"
+                  >
+                    {isSavingChatbot ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                    {isCreatingChatbot ? 'Create Chatbot' : 'Save Settings'}
+                  </button>
+                </div>
+              </form>
             </motion.div>
 
             <motion.aside
-              initial={{ opacity: 0, y: 20 }}
+              initial={{ opacity: 0, y: 18 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6 }}
+              transition={{ duration: 0.65 }}
               className="border border-white/10 bg-[#1c1c1c]/20 backdrop-blur-xl rounded-3xl p-6 shadow-2xl"
             >
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <p className="text-sm text-white/40">Profile</p>
-                  <h2 className="text-xl font-semibold text-white mt-1">Account details</h2>
+                  <h2 className="text-xl font-semibold text-white mt-1">Account</h2>
                 </div>
                 {isLoading && <Loader2 className="w-5 h-5 text-white/50 animate-spin" />}
               </div>
-
-              {error && (
-                <div className="mt-5 rounded-2xl border border-red-400/20 bg-red-500/10 p-4 text-sm text-red-100 flex gap-3">
-                  <AlertCircle className="w-5 h-5 shrink-0" />
-                  <div className="flex-1">
-                    <p>{error}</p>
-                    {accessToken && (
-                      <button
-                        type="button"
-                        onClick={() => loadProfile(accessToken).catch((err) => setError(err instanceof Error ? err.message : 'Could not load your profile.'))}
-                        className="mt-3 inline-flex items-center gap-2 text-xs font-medium text-white/80 hover:text-white"
-                      >
-                        <RefreshCw className="w-3.5 h-3.5" />
-                        Retry
-                      </button>
-                    )}
-                  </div>
-                </div>
-              )}
 
               <form className="mt-6 space-y-4" onSubmit={handleSaveProfile}>
                 <label className="block">
@@ -267,7 +820,7 @@ export function Dashboard() {
                     value={firstName}
                     onChange={(event) => setFirstName(event.target.value)}
                     disabled={isLoading}
-                    className="mt-2 w-full bg-[#101010] border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder-white/30 focus:outline-none focus:border-white/30 disabled:opacity-50"
+                    className={inputClass}
                     placeholder="First name"
                   />
                 </label>
@@ -277,7 +830,7 @@ export function Dashboard() {
                     value={lastName}
                     onChange={(event) => setLastName(event.target.value)}
                     disabled={isLoading}
-                    className="mt-2 w-full bg-[#101010] border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder-white/30 focus:outline-none focus:border-white/30 disabled:opacity-50"
+                    className={inputClass}
                     placeholder="Last name"
                   />
                 </label>
@@ -292,19 +845,231 @@ export function Dashboard() {
 
                 <button
                   type="submit"
-                  disabled={isLoading || isSaving}
+                  disabled={isLoading || isSavingProfile}
                   className="w-full inline-flex items-center justify-center gap-2 px-5 py-3 text-sm font-semibold text-vella-black bg-vella-white rounded-xl hover:bg-gray-200 transition-colors disabled:opacity-60"
                 >
-                  {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                  {isSavingProfile ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                   Save Profile
                 </button>
               </form>
 
-              {profile && (
-                <p className="text-xs text-white/35 mt-5">
-                  Profile created {new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(new Date(profile.created_at))}
-                </p>
+              <div className="mt-6 rounded-2xl border border-white/10 bg-black/20 p-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center text-sm font-medium border border-white/10">
+                    {initials(profile, email)}
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-white">{displayName}</p>
+                    <p className="text-xs text-white/35">{email ?? 'No email cached'}</p>
+                  </div>
+                </div>
+              </div>
+            </motion.aside>
+          </section>
+
+          <section className="grid grid-cols-1 xl:grid-cols-[1fr_360px] gap-6">
+            <motion.div
+              initial={{ opacity: 0, y: 18 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.7 }}
+              className="border border-white/10 bg-[#1c1c1c]/20 backdrop-blur-xl rounded-3xl p-6 shadow-2xl"
+            >
+              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+                <div>
+                  <p className="text-sm text-white/40">Manual knowledge</p>
+                  <h2 className="text-2xl font-semibold text-white mt-1">Questions and answers</h2>
+                  <p className="text-sm text-white/45 mt-2 max-w-2xl">
+                    Add the answers your chatbot should already know. These stay editable while document upload is still locked.
+                  </p>
+                </div>
+                {isLoadingFaqs && <Loader2 className="w-5 h-5 text-white/50 animate-spin" />}
+              </div>
+
+              {!selectedChatbot ? (
+                <div className="mt-6 min-h-[220px] rounded-2xl border border-dashed border-white/10 bg-black/20 flex flex-col items-center justify-center text-center px-6">
+                  <FileText className="w-9 h-9 text-white/25" />
+                  <h3 className="text-lg font-medium text-white/75 mt-4">Create a chatbot first</h3>
+                  <p className="text-sm text-white/40 mt-2 max-w-md">Manual Q&A belongs to a specific chatbot, so the setup form above unlocks this workspace.</p>
+                </div>
+              ) : (
+                <>
+                  {faqError && (
+                    <div className="mt-5 rounded-2xl border border-red-400/20 bg-red-500/10 p-4 text-sm text-red-100 flex gap-3">
+                      <AlertCircle className="w-5 h-5 shrink-0" />
+                      <p>{faqError}</p>
+                    </div>
+                  )}
+
+                  <form className="mt-6 grid grid-cols-1 lg:grid-cols-[1fr_1fr_auto] gap-3 items-end" onSubmit={handleCreateFaq}>
+                    <label className="block">
+                      <span className="text-xs font-medium text-white/45">Question</span>
+                      <textarea
+                        value={faqForm.question}
+                        onChange={(event) => setFaqForm((form) => ({ ...form, question: event.target.value }))}
+                        disabled={isSavingFaq}
+                        className={`${textareaClass} min-h-[88px]`}
+                        placeholder="What are your delivery options?"
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="text-xs font-medium text-white/45">Answer</span>
+                      <textarea
+                        value={faqForm.answer}
+                        onChange={(event) => setFaqForm((form) => ({ ...form, answer: event.target.value }))}
+                        disabled={isSavingFaq}
+                        className={`${textareaClass} min-h-[88px]`}
+                        placeholder="We deliver nationwide within 2-5 business days."
+                      />
+                    </label>
+                    <button
+                      type="submit"
+                      disabled={isSavingFaq}
+                      className="inline-flex items-center justify-center gap-2 px-5 py-3 text-sm font-semibold text-vella-black bg-vella-white rounded-xl hover:bg-gray-200 transition-colors disabled:opacity-60 lg:mb-0"
+                    >
+                      {isSavingFaq ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                      Add
+                    </button>
+                  </form>
+
+                  <div className="mt-6 space-y-3">
+                    {faqs.map((faq) => (
+                      <div key={faq.id} className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                        {editingFaqId === faq.id ? (
+                          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                            <textarea
+                              value={editingFaqForm.question}
+                              onChange={(event) => setEditingFaqForm((form) => ({ ...form, question: event.target.value }))}
+                              className={`${textareaClass} min-h-[84px]`}
+                            />
+                            <textarea
+                              value={editingFaqForm.answer}
+                              onChange={(event) => setEditingFaqForm((form) => ({ ...form, answer: event.target.value }))}
+                              className={`${textareaClass} min-h-[84px]`}
+                            />
+                            <div className="lg:col-span-2 flex flex-wrap gap-2 justify-end">
+                              <button
+                                type="button"
+                                onClick={() => setEditingFaqId(null)}
+                                className="px-4 py-2 text-sm font-medium text-white/70 border border-white/10 rounded-xl hover:bg-white/5"
+                              >
+                                Cancel
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleSaveFaqEdit(faq.id)}
+                                disabled={isSavingFaq}
+                                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-vella-black bg-vella-white rounded-xl hover:bg-gray-200 disabled:opacity-60"
+                              >
+                                <Save className="w-4 h-4" />
+                                Save
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex flex-col gap-4">
+                            <div className="flex items-start justify-between gap-4">
+                              <div>
+                                <p className="text-sm font-medium text-white">{faq.question}</p>
+                                <p className="text-sm text-white/50 mt-2">{faq.answer}</p>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => handleToggleFaq(faq)}
+                                className={`shrink-0 inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-full border ${
+                                  faq.is_enabled
+                                    ? 'border-emerald-400/20 bg-emerald-500/10 text-emerald-200'
+                                    : 'border-white/10 bg-white/5 text-white/40'
+                                }`}
+                              >
+                                <CheckCircle2 className="w-3.5 h-3.5" />
+                                {faq.is_enabled ? 'Enabled' : 'Off'}
+                              </button>
+                            </div>
+                            <div className="flex items-center justify-between gap-3 text-xs text-white/35">
+                              <span>Updated {shortDate(faq.updated_at)}</span>
+                              <div className="flex gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => handleStartEditFaq(faq)}
+                                  className="px-3 py-1.5 rounded-lg border border-white/10 text-white/60 hover:bg-white/5 hover:text-white"
+                                >
+                                  Edit
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteFaq(faq)}
+                                  className="px-3 py-1.5 rounded-lg border border-red-400/20 text-red-100/80 hover:bg-red-500/10"
+                                >
+                                  Delete
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+
+                    {faqs.length === 0 && !isLoadingFaqs && (
+                      <div className="rounded-2xl border border-dashed border-white/10 bg-black/20 p-6 text-center">
+                        <MessageSquare className="w-8 h-8 text-white/25 mx-auto" />
+                        <p className="text-sm text-white/55 mt-3">No Q&A pairs yet</p>
+                        <p className="text-xs text-white/35 mt-1">Seed common answers before training from documents.</p>
+                      </div>
+                    )}
+                  </div>
+                </>
               )}
+            </motion.div>
+
+            <motion.aside
+              initial={{ opacity: 0, y: 18 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.75 }}
+              className="border border-white/10 bg-[#1c1c1c]/20 backdrop-blur-xl rounded-3xl p-6 shadow-2xl"
+            >
+              <div>
+                <p className="text-sm text-white/40">Knowledge upload</p>
+                <h2 className="text-xl font-semibold text-white mt-1">Documents</h2>
+              </div>
+
+              <div className="mt-6 rounded-2xl border border-dashed border-white/10 bg-black/20 p-6 opacity-60">
+                <div className="w-12 h-12 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center">
+                  <UploadCloud className="w-6 h-6 text-white/45" />
+                </div>
+                <h3 className="text-base font-medium text-white/75 mt-5">Upload disabled</h3>
+                <p className="text-sm text-white/40 mt-2">
+                  PDF, DOCX, TXT, and crawler training will unlock when the knowledge module is connected.
+                </p>
+                <button
+                  type="button"
+                  disabled
+                  className="mt-5 w-full inline-flex items-center justify-center gap-2 px-5 py-3 text-sm font-semibold text-white/35 bg-white/5 border border-white/10 rounded-xl cursor-not-allowed"
+                >
+                  <Lock className="w-4 h-4" />
+                  Coming Soon
+                </button>
+              </div>
+
+              <div className="mt-6 rounded-2xl border border-white/10 bg-black/20 p-5">
+                <p className="text-sm font-medium text-white/80">Widget preview</p>
+                <div className="mt-4 rounded-2xl border border-white/10 bg-[#101010] p-4">
+                  <div className="flex items-center gap-3">
+                    <div
+                      className="w-9 h-9 rounded-full flex items-center justify-center border border-white/10"
+                      style={{ backgroundColor: colorInputValue(chatbotForm.brand_color) }}
+                    >
+                      <Bot className="w-4 h-4 text-white" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-white">{chatbotForm.name || 'Support Assistant'}</p>
+                      <p className="text-xs text-white/35">{chatbotForm.tone || 'friendly'} tone</p>
+                    </div>
+                  </div>
+                  <p className="mt-4 rounded-xl bg-white/5 px-4 py-3 text-sm text-white/65">
+                    {chatbotForm.greeting_message || 'Hi! How can I help you today?'}
+                  </p>
+                </div>
+              </div>
             </motion.aside>
           </section>
         </main>
