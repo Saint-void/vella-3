@@ -9,6 +9,7 @@ import { Navbar } from './components/Navbar';
 import { Footer } from './components/Footer';
 import { ScrollToTop } from './components/ScrollToTop';
 import { PageSkeleton } from './components/PageSkeleton';
+import { ChatWidget } from './components/ChatWidget';
 
 // Lazy load Pages
 const Home = lazy(() => import('./pages/Home').then(m => ({ default: m.Home })));
@@ -64,6 +65,8 @@ export default function App() {
 
         {!isStandalonePage && <Footer />}
       </div>
+      
+      {!isStandalonePage && <ChatWidget />}
     </div>
   );
 }
