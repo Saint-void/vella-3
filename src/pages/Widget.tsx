@@ -45,6 +45,10 @@ function fallbackGreeting(config: WidgetConfig) {
   };
 }
 
+function createVisitorId() {
+  return window.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
 function resolveSiteOrigin(queryOrigin: string | null) {
   try {
     if (document.referrer) {
@@ -74,6 +78,41 @@ export function Widget() {
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const ensureVisitorId = () => {
+    if (visitorId) return visitorId;
+
+    if (!chatbotId) {
+      throw new Error('Missing chatbot id.');
+    }
+
+    const storedVisitorId = window.localStorage.getItem(visitorKey(chatbotId, siteOrigin));
+    const nextVisitorId = storedVisitorId || createVisitorId();
+    window.localStorage.setItem(visitorKey(chatbotId, siteOrigin), nextVisitorId);
+    setVisitorId(nextVisitorId);
+    return nextVisitorId;
+  };
+
+  const createConversation = async (currentVisitorId: string) => {
+    if (!chatbotId) {
+      throw new Error('Missing chatbot id.');
+    }
+
+    const conversation = await createWidgetConversation(chatbotId, {
+      site_origin: siteOrigin,
+      visitor_id: currentVisitorId,
+    });
+
+    window.localStorage.setItem(storageKey(chatbotId, siteOrigin), conversation.id);
+    setConversationId(conversation.id);
+    setMessages((current) => {
+      if (current.length > 0) return current;
+      if (conversation.messages.length > 0) return conversation.messages.map(formatWidgetMessage);
+      return config ? [fallbackGreeting(config)] : [];
+    });
+
+    return conversation.id;
+  };
 
   const panelSize = useMemo(
     () => ({
@@ -117,7 +156,7 @@ export function Widget() {
         setConfig(widgetConfig);
 
         const storedVisitorId = window.localStorage.getItem(visitorKey(chatbotId, siteOrigin));
-        const nextVisitorId = storedVisitorId || window.crypto.randomUUID();
+        const nextVisitorId = storedVisitorId || createVisitorId();
         window.localStorage.setItem(visitorKey(chatbotId, siteOrigin), nextVisitorId);
         if (!isMounted) return;
         setVisitorId(nextVisitorId);
@@ -175,18 +214,32 @@ export function Widget() {
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!chatbotId || !conversationId || !input.trim() || isSending) return;
+    if (!chatbotId || !input.trim() || isSending) return;
 
     const content = input.trim();
     setInput('');
     setIsSending(true);
 
     try {
-      const response = await sendWidgetMessage(chatbotId, conversationId, {
-        site_origin: siteOrigin,
-        content,
-        visitor_id: visitorId || null,
-      });
+      const currentVisitorId = ensureVisitorId();
+      let currentConversationId = conversationId || await createConversation(currentVisitorId);
+
+      let response;
+      try {
+        response = await sendWidgetMessage(chatbotId, currentConversationId, {
+          site_origin: siteOrigin,
+          content,
+          visitor_id: currentVisitorId,
+        });
+      } catch {
+        window.localStorage.removeItem(storageKey(chatbotId, siteOrigin));
+        currentConversationId = await createConversation(currentVisitorId);
+        response = await sendWidgetMessage(chatbotId, currentConversationId, {
+          site_origin: siteOrigin,
+          content,
+          visitor_id: currentVisitorId,
+        });
+      }
 
       setMessages((current) => [...current, response.visitor_message, response.assistant_message]);
       setError(null);
@@ -360,7 +413,7 @@ export function Widget() {
                   />
                   <button
                     type="submit"
-                    disabled={!input.trim() || isSending || isBooting}
+                    disabled={!input.trim() || isSending}
                     className="absolute right-1.5 top-1.5 inline-flex h-9 w-9 items-center justify-center rounded-full text-white transition-transform disabled:cursor-not-allowed disabled:opacity-50"
                     style={{ backgroundColor: brandColor }}
                     aria-label="Send message"
