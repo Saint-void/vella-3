@@ -3,6 +3,14 @@
   const DEFAULT_OPEN_SIZE = { width: 420, height: 640 };
   const MARGIN = 24;
 
+  // Page-level guard, not script-node-level. Protects against
+  // duplicate embed snippets AND against a script tag being removed
+  // and re-inserted (e.g. a SPA layout component re-running its
+  // effect on route change) -- either of those creates a fresh DOM
+  // node with no memory of having mounted before, which the old
+  // per-node dataset guard couldn't catch.
+  window.__vellaMountedChatbots = window.__vellaMountedChatbots || new Set();
+
   function clamp(value, min, max) {
     return Math.max(min, Math.min(max, value));
   }
@@ -30,7 +38,7 @@
   }
 
   function mount(script) {
-    if (!script || script.dataset.vellaMounted === 'true') {
+    if (!script) {
       return;
     }
 
@@ -39,6 +47,12 @@
       return;
     }
 
+    // Global check first -- this is what actually stops duplicates,
+    // regardless of which script node is asking.
+    if (window.__vellaMountedChatbots.has(chatbotId)) {
+      return;
+    }
+    window.__vellaMountedChatbots.add(chatbotId);
     script.dataset.vellaMounted = 'true';
 
     const siteOrigin = script.dataset.vellaSiteOrigin || window.location.origin;
@@ -104,4 +118,4 @@
   } else {
     init();
   }
-})();
+})(); 
