@@ -1,3 +1,6 @@
+import { getAccessToken, isAccessTokenExpiring } from "./authSession";
+import { refreshAccessToken } from "./authRefresh";
+
 export const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000").replace(/\/$/, "");
 
 const shouldSkipNgrokBrowserWarning = (() => {
@@ -54,6 +57,17 @@ export async function publicApiRequest<T>(
   return parseResponse<T>(response);
 }
 
+// Callers hitting a protected endpoint should call this right before
+// apiRequest instead of reading the stored token directly -- it
+// refreshes first if the token is expired or about to be, so requests
+// don't go out with a token that's already dead.
+export async function getValidAccessToken(): Promise<string | null> {
+  if (!isAccessTokenExpiring()) {
+    return getAccessToken();
+  }
+  return refreshAccessToken();
+}
+
 export async function apiRequest<T>(
   path: string,
   accessToken: string,
@@ -68,6 +82,28 @@ export async function apiRequest<T>(
       ...options.headers,
     },
   });
+
+  // Backstop for cases proactive refresh won't catch -- clock skew
+  // between client and server, a session revoked server-side, or
+  // another tab burning the refresh_token via rotation right before
+  // this call landed. Retries once with a freshly refreshed token
+  // before giving up.
+  if (response.status === 401) {
+    const refreshedToken = await refreshAccessToken();
+
+    if (refreshedToken) {
+      const retryResponse = await fetch(`${API_BASE_URL}${path}`, {
+        ...options,
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${refreshedToken}`,
+          ...API_HEADERS,
+          ...options.headers,
+        },
+      });
+      return parseResponse<T>(retryResponse);
+    }
+  }
 
   return parseResponse<T>(response);
 }
