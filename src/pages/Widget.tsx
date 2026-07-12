@@ -17,7 +17,7 @@ type ResizeState = {
   height: number;
 };
 
-const CLOSED_SIZE: ResizeState = { width: 88, height: 88 };
+const CLOSED_SIZE: ResizeState = { width: 64, height: 64 };
 const OPEN_SIZE: ResizeState = { width: 420, height: 640 };
 
 function formatWidgetMessage(message: WidgetMessage) {
@@ -277,11 +277,15 @@ export function Widget() {
             exit={{ opacity: 0, scale: 0.9 }}
             transition={{ duration: 0.2 }}
             onClick={openWidget}
-            className="absolute bottom-0 right-0 m-2 flex h-[50px] w-[50px] items-center justify-center rounded-full border border-white/10 bg-[#0f0f0f] text-white shadow-2xl shadow-black/40"
-            style={{ boxShadow: `0 18px 50px color-mix(in srgb, ${brandColor} 32%, transparent)` }}
+            className="absolute bottom-0 right-0 flex items-center justify-center rounded-full border border-white/10 bg-[#0f0f0f] text-white shadow-2xl shadow-black/40"
+            style={{
+              width: CLOSED_SIZE.width,
+              height: CLOSED_SIZE.height,
+              boxShadow: `0 18px 50px color-mix(in srgb, ${brandColor} 32%, transparent)`,
+            }}
             aria-label="Open chat widget"
           >
-            {isBooting ? <Loader2 className="h-6 w-6 animate-spin text-white/80" /> : <MessageCircle className="h-7 w-7" />}
+            {isBooting ? <Loader2 className="h-5 w-5 animate-spin text-white/80" /> : <MessageCircle className="h-6 w-6" />}
           </motion.button>
         ) : (
           <motion.section

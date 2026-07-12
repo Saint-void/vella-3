@@ -1,5 +1,5 @@
 (function () {
-  const DEFAULT_CLOSED_SIZE = 88;
+  const DEFAULT_CLOSED_SIZE = 64;
   const DEFAULT_OPEN_SIZE = { width: 420, height: 640 };
   const MARGIN = 24;
 
@@ -34,7 +34,7 @@
 
     iframe.style.width = `${width}px`;
     iframe.style.height = `${height}px`;
-    iframe.style.borderRadius = width <= DEFAULT_CLOSED_SIZE && height <= DEFAULT_CLOSED_SIZE ? '999px' : '28px';
+    iframe.style.borderRadius = width <= DEFAULT_CLOSED_SIZE && height <= DEFAULT_CLOSED_SIZE ? '50px' : '50px';
   }
 
   function mount(script) {
@@ -74,7 +74,7 @@
     iframe.style.background = 'transparent';
     iframe.style.overflow = 'hidden';
     iframe.style.zIndex = '2147483647';
-    iframe.style.boxShadow = '0 24px 80px rgba(0, 0, 0, 0.35)';
+    iframe.style.boxShadow = '0 12px 32px rgba(0, 0, 0, 0.3)';
     iframe.style.transition = 'width 180ms ease, height 180ms ease, border-radius 180ms ease';
 
     function onMessage(event) {
