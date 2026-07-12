@@ -49,6 +49,19 @@ function createVisitorId() {
   return window.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
+function isFatalWidgetError(message: string | null): boolean {
+  if (!message) return false;
+  const lower = message.toLowerCase();
+  return (
+    lower.includes('chatbot not found') ||
+    lower.includes('not allowed on that domain') ||
+    lower.includes('not allowed on this domain') ||
+    lower.includes('domain not allowed') ||
+    lower.includes('chatbot not allowed') ||
+    lower.includes('forbidden') && lower.includes('domain')
+  );
+}
+
 function resolveSiteOrigin(queryOrigin: string | null) {
   try {
     if (document.referrer) {
@@ -75,6 +88,7 @@ export function Widget() {
   const [isBooting, setIsBooting] = useState(true);
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isFatalError, setIsFatalError] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -116,10 +130,10 @@ export function Widget() {
 
   const panelSize = useMemo(
     () => ({
-      width: isOpen ? OPEN_SIZE.width : CLOSED_SIZE.width,
-      height: isOpen ? OPEN_SIZE.height : CLOSED_SIZE.height,
+      width: isFatalError ? CLOSED_SIZE.width : isOpen ? OPEN_SIZE.width : CLOSED_SIZE.width,
+      height: isFatalError ? CLOSED_SIZE.height : isOpen ? OPEN_SIZE.height : CLOSED_SIZE.height,
     }),
-    [isOpen],
+    [isFatalError, isOpen],
   );
 
   useEffect(() => {
@@ -191,7 +205,12 @@ export function Widget() {
         setError(null);
       } catch (err) {
         if (!isMounted) return;
-        setError(err instanceof Error ? err.message : 'We could not load this chatbot right now.');
+        const message = err instanceof Error ? err.message : 'We could not load this chatbot right now.';
+        console.error(`[Vella Widget] ${message}`, err);
+        setError(message);
+        if (isFatalWidgetError(message)) {
+          setIsFatalError(true);
+        }
       } finally {
         if (isMounted) {
           setIsBooting(false);
@@ -268,34 +287,35 @@ export function Widget() {
 
   return (
     <div className="relative h-screen w-screen overflow-hidden bg-transparent">
-      <AnimatePresence mode="wait">
-        {!isOpen ? (
-          <motion.button
-            key="launcher"
-            initial={{ opacity: 0, scale: 0.9, y: 12 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.9 }}
-            transition={{ duration: 0.2 }}
-            onClick={openWidget}
-            className="absolute bottom-0 right-0 flex items-center justify-center rounded-full border border-white/10 bg-[#0f0f0f] text-white shadow-2xl shadow-black/40"
-            style={{
-              width: CLOSED_SIZE.width,
-              height: CLOSED_SIZE.height,
-              boxShadow: `0 18px 50px color-mix(in srgb, ${brandColor} 32%, transparent)`,
-            }}
-            aria-label="Open chat widget"
-          >
-            {isBooting ? <Loader2 className="h-5 w-5 animate-spin text-white/80" /> : <MessageCircle className="h-6 w-6" />}
-          </motion.button>
-        ) : (
-          <motion.section
-            key="panel"
-            initial={{ opacity: 0, scale: 0.98, y: 18 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.98, y: 18 }}
-            transition={{ duration: 0.22 }}
-            className="absolute inset-0 flex h-full w-full justify-end"
-          >
+      {isFatalError ? null : (
+        <AnimatePresence mode="wait">
+          {!isOpen ? (
+            <motion.button
+              key="launcher"
+              initial={{ opacity: 0, scale: 0.9, y: 12 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              transition={{ duration: 0.2 }}
+              onClick={openWidget}
+              className="absolute bottom-0 right-0 flex items-center justify-center rounded-full border border-white/10 bg-[#0f0f0f] text-white shadow-2xl shadow-black/40"
+              style={{
+                width: CLOSED_SIZE.width,
+                height: CLOSED_SIZE.height,
+                boxShadow: `0 18px 50px color-mix(in srgb, ${brandColor} 32%, transparent)`,
+              }}
+              aria-label="Open chat widget"
+            >
+              {isBooting ? <Loader2 className="h-5 w-5 animate-spin text-white/80" /> : <MessageCircle className="h-6 w-6" />}
+            </motion.button>
+          ) : (
+            <motion.section
+              key="panel"
+              initial={{ opacity: 0, scale: 0.98, y: 18 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.98, y: 18 }}
+              transition={{ duration: 0.22 }}
+              className="absolute inset-0 flex h-full w-full justify-end"
+            >
             <div
               className="flex h-full w-full flex-col overflow-hidden rounded-[18px] border border-white/10 bg-[#0d0d0d] text-white "
               style={{
@@ -430,6 +450,7 @@ export function Widget() {
           </motion.section>
         )}
       </AnimatePresence>
+      )}
     </div>
   );
 }
