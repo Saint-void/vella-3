@@ -277,7 +277,7 @@ export function Widget() {
             exit={{ opacity: 0, scale: 0.9 }}
             transition={{ duration: 0.2 }}
             onClick={openWidget}
-            className="absolute bottom-0 right-0 m-2 flex h-[72px] w-[72px] items-center justify-center rounded-full border border-white/10 bg-[#0f0f0f] text-white shadow-2xl shadow-black/40"
+            className="absolute bottom-0 right-0 m-2 flex h-[50px] w-[50px] items-center justify-center rounded-full border border-white/10 bg-[#0f0f0f] text-white shadow-2xl shadow-black/40"
             style={{ boxShadow: `0 18px 50px color-mix(in srgb, ${brandColor} 32%, transparent)` }}
             aria-label="Open chat widget"
           >
