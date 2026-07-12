@@ -34,8 +34,7 @@
 
     iframe.style.width = `${width}px`;
     iframe.style.height = `${height}px`;
-    iframe.style.borderRadius = width <= DEFAULT_CLOSED_SIZE && height <= DEFAULT_CLOSED_SIZE ? '50px' : '50px';
-  }
+    iframe.style.borderRadius = width <= DEFAULT_CLOSED_SIZE && height <= DEFAULT_CLOSED_SIZE ? '999px' : '28px';  }
 
   function mount(script) {
     if (!script) {
