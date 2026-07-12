@@ -297,7 +297,7 @@ export function Widget() {
             className="absolute inset-0 flex h-full w-full justify-end"
           >
             <div
-              className="flex h-full w-full flex-col overflow-hidden rounded-[28px] border border-white/10 bg-[#0d0d0d] text-white shadow-[0_32px_90px_rgba(0,0,0,0.48)]"
+              className="flex h-full w-full flex-col overflow-hidden rounded-[18px] border border-white/10 bg-[#0d0d0d] text-white "
               style={{
                 background: `linear-gradient(180deg, color-mix(in srgb, ${brandColor} 12%, #111111) 0%, #0b0b0b 52%, #090909 100%)`,
               }}
