@@ -285,37 +285,63 @@ export function Widget() {
   const businessName = config?.business_name || 'Vella';
   const greeting = config?.greeting_message || 'Hi! How can I help you today?';
 
+  const fatalLine = useMemo(
+    () =>
+      isFatalError
+        ? {
+            background: `linear-gradient(to bottom left, rgba(255,255,255,0.08) 0%, transparent 40%, transparent 60%, rgba(255,255,255,0.08) 100%)`,
+          }
+        : undefined,
+    [isFatalError],
+  );
+
   return (
     <div className="relative h-screen w-screen overflow-hidden bg-transparent">
-      {isFatalError ? null : (
-        <AnimatePresence mode="wait">
-          {!isOpen ? (
-            <motion.button
-              key="launcher"
-              initial={{ opacity: 0, scale: 0.9, y: 12 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.9 }}
-              transition={{ duration: 0.2 }}
-              onClick={openWidget}
-              className="absolute bottom-0 right-0 flex items-center justify-center rounded-full border border-white/10 bg-[#0f0f0f] text-white shadow-2xl shadow-black/40"
-              style={{
-                width: CLOSED_SIZE.width,
-                height: CLOSED_SIZE.height,
-                boxShadow: `0 18px 50px color-mix(in srgb, ${brandColor} 32%, transparent)`,
-              }}
-              aria-label="Open chat widget"
-            >
-              {isBooting ? <Loader2 className="h-5 w-5 animate-spin text-white/80" /> : <MessageCircle className="h-6 w-6" />}
-            </motion.button>
-          ) : (
-            <motion.section
-              key="panel"
-              initial={{ opacity: 0, scale: 0.98, y: 18 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.98, y: 18 }}
-              transition={{ duration: 0.22 }}
-              className="absolute inset-0 flex h-full w-full justify-end"
-            >
+      <div
+        className="pointer-events-none absolute inset-0 z-10 rounded-[28px]"
+        style={fatalLine}
+      />
+      <AnimatePresence mode="wait">
+        {!isOpen ? (
+          <motion.button
+            key="launcher"
+            initial={{ opacity: 0, scale: 0.9, y: 12 }}
+            animate={{
+              opacity: isFatalError ? 0.35 : 1,
+              scale: 1,
+              y: 0,
+            }}
+            exit={{ opacity: 0, scale: 0.9 }}
+            transition={{ duration: 0.2 }}
+            onClick={isFatalError ? undefined : openWidget}
+            className="absolute bottom-0 right-0 flex items-center justify-center rounded-full border border-white/10 bg-[#0f0f0f] text-white shadow-2xl shadow-black/40"
+            style={{
+              width: CLOSED_SIZE.width,
+              height: CLOSED_SIZE.height,
+              boxShadow: isFatalError
+                ? 'none'
+                : `0 18px 50px color-mix(in srgb, ${brandColor} 32%, transparent)`,
+              cursor: isFatalError ? 'default' : 'pointer',
+              filter: isFatalError ? 'grayscale(1) opacity(0.35)' : undefined,
+            }}
+            aria-label="Open chat widget"
+          >
+            {isBooting ? <Loader2 className="h-5 w-5 animate-spin text-white/80" /> : <MessageCircle className="h-6 w-6" />}
+          </motion.button>
+        ) : (
+          <motion.section
+            key="panel"
+            initial={{ opacity: 0, scale: 0.98, y: 18 }}
+            animate={{
+              opacity: isFatalError ? 0.35 : 1,
+              scale: 1,
+              y: 0,
+              filter: isFatalError ? 'grayscale(1)' : undefined,
+            }}
+            exit={{ opacity: 0, scale: 0.98, y: 18 }}
+            transition={{ duration: 0.22 }}
+            className="absolute inset-0 flex h-full w-full justify-end"
+          >
             <div
               className="flex h-full w-full flex-col overflow-hidden rounded-[18px] border border-white/10 bg-[#0d0d0d] text-white "
               style={{
@@ -450,7 +476,6 @@ export function Widget() {
           </motion.section>
         )}
       </AnimatePresence>
-      )}
     </div>
   );
 }
