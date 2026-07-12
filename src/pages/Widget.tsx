@@ -294,7 +294,7 @@ export function Widget() {
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.98, y: 18 }}
             transition={{ duration: 0.22 }}
-            className="absolute inset-0 flex h-full w-full justify-end p-2 sm:p-0"
+            className="absolute inset-0 flex h-full w-full justify-end"
           >
             <div
               className="flex h-full w-full flex-col overflow-hidden rounded-[28px] border border-white/10 bg-[#0d0d0d] text-white shadow-[0_32px_90px_rgba(0,0,0,0.48)]"
