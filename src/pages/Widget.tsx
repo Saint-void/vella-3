@@ -231,45 +231,71 @@ export function Widget() {
     }
   }, [isOpen]);
 
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, isOpen, isSending]);
+
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!chatbotId || !input.trim() || isSending) return;
+  event.preventDefault();
+  if (!chatbotId || !input.trim() || isSending) return;
 
-    const content = input.trim();
-    setInput('');
-    setIsSending(true);
+  const content = input.trim();
+  setInput('');
+  setIsSending(true);
 
-    try {
-      const currentVisitorId = ensureVisitorId();
-      let currentConversationId = conversationId || await createConversation(currentVisitorId);
-
-      let response;
-      try {
-        response = await sendWidgetMessage(chatbotId, currentConversationId, {
-          site_origin: siteOrigin,
-          content,
-          visitor_id: currentVisitorId,
-        });
-      } catch {
-        window.localStorage.removeItem(storageKey(chatbotId, siteOrigin));
-        currentConversationId = await createConversation(currentVisitorId);
-        response = await sendWidgetMessage(chatbotId, currentConversationId, {
-          site_origin: siteOrigin,
-          content,
-          visitor_id: currentVisitorId,
-        });
-      }
-
-      setMessages((current) => [...current, response.visitor_message, response.assistant_message]);
-      setError(null);
-      window.localStorage.setItem(storageKey(chatbotId, siteOrigin), response.conversation_id);
-    } catch (err) {
-      setInput(content);
-      setError(err instanceof Error ? err.message : 'Your message could not be sent.');
-    } finally {
-      setIsSending(false);
-    }
+  // Show the visitor's bubble immediately, before the network call
+  // resolves. Temp id lets us swap it for the real persisted message
+  // once the server responds, without waiting on it to render.
+  const optimisticId = `optimistic-${Date.now()}`;
+  const optimisticMessage: WidgetMessage = {
+    id: optimisticId,
+    role: 'visitor',
+    content,
+    matched_faq_id: null,
+    created_at: new Date().toISOString(),
   };
+  setMessages((current) => [...current, optimisticMessage]);
+
+  try {
+    const currentVisitorId = ensureVisitorId();
+    let currentConversationId = conversationId || await createConversation(currentVisitorId);
+
+    let response;
+    try {
+      response = await sendWidgetMessage(chatbotId, currentConversationId, {
+        site_origin: siteOrigin,
+        content,
+        visitor_id: currentVisitorId,
+      });
+    } catch {
+      window.localStorage.removeItem(storageKey(chatbotId, siteOrigin));
+      currentConversationId = await createConversation(currentVisitorId);
+      response = await sendWidgetMessage(chatbotId, currentConversationId, {
+        site_origin: siteOrigin,
+        content,
+        visitor_id: currentVisitorId,
+      });
+    }
+
+    // Swap the optimistic bubble for the real one (correct id/timestamp
+    // from the DB) and append the assistant's reply next to it.
+    setMessages((current) => [
+      ...current.filter((message) => message.id !== optimisticId),
+      response.visitor_message,
+      response.assistant_message,
+    ]);
+    setError(null);
+    window.localStorage.setItem(storageKey(chatbotId, siteOrigin), response.conversation_id);
+  } catch (err) {
+    // Send failed -- pull the optimistic bubble back out and give the
+    // typed text back to the input so nothing gets lost.
+    setMessages((current) => current.filter((message) => message.id !== optimisticId));
+    setInput(content);
+    setError(err instanceof Error ? err.message : 'Your message could not be sent.');
+  } finally {
+    setIsSending(false);
+  }
+};
 
   const openWidget = () => {
     setIsOpen(true);
@@ -422,6 +448,16 @@ export function Widget() {
                       </div>
                     </div>
                   ))}
+
+                  {isSending && (
+                    <div className="flex justify-start">
+                      <div className="flex items-center gap-1.5 rounded-2xl rounded-bl-sm border border-white/10 bg-black/25 px-4 py-3">
+                        <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-white/40 [animation-delay:-0.3s]" />
+                        <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-white/40 [animation-delay:-0.15s]" />
+                        <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-white/40" />
+                      </div>
+                    </div>
+                  )}
 
                   {!messages.length && !isBooting && (
                     <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/70">
