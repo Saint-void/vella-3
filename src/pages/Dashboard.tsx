@@ -9,7 +9,6 @@ import {
   FileText,
   LayoutDashboard,
   Loader2,
-  Lock,
   LogOut,
   MessageSquare,
   Plus,
@@ -37,6 +36,14 @@ import {
   updateChatbotFaq,
 } from '../lib/chatbots';
 import { clearAuthSession, getAccessToken, getAuthEmail } from '../lib/authSession';
+import {
+  KnowledgeDocument,
+  createTextKnowledgeDocument,
+  deleteKnowledgeDocument,
+  listKnowledgeDocuments,
+  reprocessKnowledgeDocument,
+  uploadKnowledgeDocument,
+} from '../lib/knowledge';
 
 type Profile = {
   id: string;
@@ -57,6 +64,11 @@ type ChatbotForm = {
   logo_url: string;
   handoff_email: string;
   status: Chatbot['status'];
+};
+
+type KnowledgeTextForm = {
+  name: string;
+  content: string;
 };
 
 type DashboardView = 'overview' | 'chatbots' | 'analytics' | 'leads';
@@ -90,6 +102,11 @@ const emptyFaqForm: ChatbotFAQPayload = {
   question: '',
   answer: '',
   is_enabled: true,
+};
+
+const emptyKnowledgeTextForm: KnowledgeTextForm = {
+  name: '',
+  content: '',
 };
 
 function initials(profile: Profile | null, email?: string) {
@@ -137,6 +154,13 @@ function statusClass(status: Chatbot['status']) {
   return 'border-sky-400/20 bg-sky-500/10 text-sky-100';
 }
 
+function knowledgeStatusClass(status: KnowledgeDocument['status']) {
+  if (status === 'ready') return 'border-emerald-400/20 bg-emerald-500/10 text-emerald-200';
+  if (status === 'failed') return 'border-red-400/20 bg-red-500/10 text-red-100';
+  if (status === 'processing') return 'border-amber-400/20 bg-amber-500/10 text-amber-100';
+  return 'border-sky-400/20 bg-sky-500/10 text-sky-100';
+}
+
 function shortDate(date: string) {
   return new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' }).format(new Date(date));
 }
@@ -161,15 +185,21 @@ export function Dashboard() {
   const [faqForm, setFaqForm] = useState<ChatbotFAQPayload>(emptyFaqForm);
   const [editingFaqId, setEditingFaqId] = useState<string | null>(null);
   const [editingFaqForm, setEditingFaqForm] = useState<ChatbotFAQPayload>(emptyFaqForm);
+  const [knowledgeDocuments, setKnowledgeDocuments] = useState<KnowledgeDocument[]>([]);
+  const [knowledgeTextForm, setKnowledgeTextForm] = useState<KnowledgeTextForm>(emptyKnowledgeTextForm);
+  const [knowledgeFile, setKnowledgeFile] = useState<File | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingFaqs, setIsLoadingFaqs] = useState(false);
+  const [isLoadingKnowledge, setIsLoadingKnowledge] = useState(false);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [isSavingChatbot, setIsSavingChatbot] = useState(false);
   const [isSavingFaq, setIsSavingFaq] = useState(false);
+  const [isSavingKnowledge, setIsSavingKnowledge] = useState(false);
   const [copiedSnippet, setCopiedSnippet] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [chatbotError, setChatbotError] = useState<string | null>(null);
   const [faqError, setFaqError] = useState<string | null>(null);
+  const [knowledgeError, setKnowledgeError] = useState<string | null>(null);
 
   const selectedChatbot = chatbots.find((chatbot) => chatbot.id === selectedChatbotId) ?? null;
   const displayName = [profile?.first_name, profile?.last_name].filter(Boolean).join(' ') || 'New founder';
@@ -201,6 +231,27 @@ export function Dashboard() {
     }
 
     return rows;
+  };
+
+  const loadKnowledgeDocuments = async (token: string, chatbotId: string) => {
+    const rows = await listKnowledgeDocuments(token, chatbotId);
+    setKnowledgeDocuments(rows);
+    return rows;
+  };
+
+  const refreshKnowledgeDocuments = async () => {
+    if (!accessToken || !selectedChatbot) return;
+
+    setIsLoadingKnowledge(true);
+    setKnowledgeError(null);
+
+    try {
+      await loadKnowledgeDocuments(accessToken, selectedChatbot.id);
+    } catch (err) {
+      setKnowledgeError(err instanceof Error ? err.message : 'Could not load knowledge documents.');
+    } finally {
+      setIsLoadingKnowledge(false);
+    }
   };
 
   const copyWidgetSnippet = async () => {
@@ -276,6 +327,36 @@ export function Dashboard() {
     };
   }, [accessToken, selectedChatbotId, isChatbotEditorOpen]);
 
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadKnowledge() {
+      if (!accessToken || !selectedChatbotId || !isChatbotEditorOpen) {
+        setKnowledgeDocuments([]);
+        setKnowledgeError(null);
+        return;
+      }
+
+      setIsLoadingKnowledge(true);
+      setKnowledgeError(null);
+
+      try {
+        const rows = await listKnowledgeDocuments(accessToken, selectedChatbotId);
+        if (isMounted) setKnowledgeDocuments(rows);
+      } catch (err) {
+        if (isMounted) setKnowledgeError(err instanceof Error ? err.message : 'Could not load knowledge documents.');
+      } finally {
+        if (isMounted) setIsLoadingKnowledge(false);
+      }
+    }
+
+    loadKnowledge();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [accessToken, selectedChatbotId, isChatbotEditorOpen]);
+
   const handleChangeView = (view: DashboardView) => {
     setActiveView(view);
     setChatbotError(null);
@@ -289,7 +370,10 @@ export function Dashboard() {
     setIsChatbotEditorOpen(true);
     setChatbotError(null);
     setFaqError(null);
+    setKnowledgeError(null);
     setEditingFaqId(null);
+    setKnowledgeTextForm(emptyKnowledgeTextForm);
+    setKnowledgeFile(null);
   };
 
   const handleStartNewChatbot = () => {
@@ -297,17 +381,24 @@ export function Dashboard() {
     setSelectedChatbotId(null);
     setChatbotForm(emptyChatbotForm);
     setFaqs([]);
+    setKnowledgeDocuments([]);
     setIsChatbotEditorOpen(true);
     setChatbotError(null);
     setFaqError(null);
+    setKnowledgeError(null);
     setEditingFaqId(null);
+    setKnowledgeTextForm(emptyKnowledgeTextForm);
+    setKnowledgeFile(null);
   };
 
   const handleCloseChatbotEditor = () => {
     setIsChatbotEditorOpen(false);
     setChatbotError(null);
     setFaqError(null);
+    setKnowledgeError(null);
     setEditingFaqId(null);
+    setKnowledgeTextForm(emptyKnowledgeTextForm);
+    setKnowledgeFile(null);
     if (selectedChatbot) {
       setChatbotForm(chatbotToForm(selectedChatbot));
     } else if (chatbots[0]) {
@@ -396,6 +487,7 @@ export function Dashboard() {
         setSelectedChatbotId(null);
         setChatbotForm(emptyChatbotForm);
         setFaqs([]);
+        setKnowledgeDocuments([]);
         setIsChatbotEditorOpen(false);
       }
     } catch (err) {
@@ -493,6 +585,100 @@ export function Dashboard() {
       setFaqs((current) => current.filter((row) => row.id !== faq.id));
     } catch (err) {
       setFaqError(err instanceof Error ? err.message : 'Could not delete Q&A.');
+    }
+  };
+
+  const handleCreateTextKnowledge = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!accessToken || !selectedChatbot) return;
+
+    const payload = {
+      name: knowledgeTextForm.name.trim(),
+      content: knowledgeTextForm.content.trim(),
+    };
+
+    if (!payload.name || !payload.content) {
+      setKnowledgeError('Knowledge name and content are required.');
+      return;
+    }
+
+    setIsSavingKnowledge(true);
+    setKnowledgeError(null);
+
+    try {
+      const created = await createTextKnowledgeDocument(accessToken, selectedChatbot.id, payload);
+      setKnowledgeDocuments((current) => [created, ...current]);
+      setKnowledgeTextForm(emptyKnowledgeTextForm);
+      window.setTimeout(() => {
+        void refreshKnowledgeDocuments();
+      }, 1500);
+    } catch (err) {
+      setKnowledgeError(err instanceof Error ? err.message : 'Could not add knowledge text.');
+    } finally {
+      setIsSavingKnowledge(false);
+    }
+  };
+
+  const handleUploadKnowledge = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!accessToken || !selectedChatbot) return;
+
+    if (!knowledgeFile) {
+      setKnowledgeError('Choose a PDF, DOCX, or TXT file first.');
+      return;
+    }
+
+    setIsSavingKnowledge(true);
+    setKnowledgeError(null);
+
+    try {
+      const created = await uploadKnowledgeDocument(accessToken, selectedChatbot.id, knowledgeFile);
+      setKnowledgeDocuments((current) => [created, ...current]);
+      setKnowledgeFile(null);
+      event.currentTarget.reset();
+      window.setTimeout(() => {
+        void refreshKnowledgeDocuments();
+      }, 1500);
+    } catch (err) {
+      setKnowledgeError(err instanceof Error ? err.message : 'Could not upload knowledge file.');
+    } finally {
+      setIsSavingKnowledge(false);
+    }
+  };
+
+  const handleReprocessKnowledge = async (document: KnowledgeDocument) => {
+    if (!accessToken || !selectedChatbot) return;
+
+    setIsSavingKnowledge(true);
+    setKnowledgeError(null);
+
+    try {
+      const updated = await reprocessKnowledgeDocument(accessToken, selectedChatbot.id, document.id);
+      setKnowledgeDocuments((current) => current.map((row) => (row.id === updated.id ? updated : row)));
+      window.setTimeout(() => {
+        void refreshKnowledgeDocuments();
+      }, 1500);
+    } catch (err) {
+      setKnowledgeError(err instanceof Error ? err.message : 'Could not reprocess document.');
+    } finally {
+      setIsSavingKnowledge(false);
+    }
+  };
+
+  const handleDeleteKnowledge = async (document: KnowledgeDocument) => {
+    if (!accessToken || !selectedChatbot) return;
+    if (!window.confirm(`Delete ${document.name}? This removes its generated chunks too.`)) return;
+
+    setIsSavingKnowledge(true);
+    setKnowledgeError(null);
+
+    try {
+      await deleteKnowledgeDocument(accessToken, selectedChatbot.id, document.id);
+      setKnowledgeDocuments((current) => current.filter((row) => row.id !== document.id));
+    } catch (err) {
+      setKnowledgeError(err instanceof Error ? err.message : 'Could not delete document.');
+    } finally {
+      setIsSavingKnowledge(false);
     }
   };
 
@@ -1215,27 +1401,145 @@ export function Dashboard() {
                       </div>
 
                       <aside className="border border-white/10 bg-[#1c1c1c]/20 backdrop-blur-xl rounded-3xl p-6 shadow-2xl">
-                        <div>
-                          <p className="text-sm text-white/40">Knowledge upload</p>
-                          <h2 className="text-xl font-semibold text-white mt-1">Documents</h2>
-                        </div>
-
-                        <div className="mt-6 rounded-2xl border border-dashed border-white/10 bg-black/20 p-6 opacity-60">
-                          <div className="w-12 h-12 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center">
-                            <UploadCloud className="w-6 h-6 text-white/45" />
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="text-sm text-white/40">Knowledge upload</p>
+                            <h2 className="text-xl font-semibold text-white mt-1">Documents</h2>
                           </div>
-                          <h3 className="text-base font-medium text-white/75 mt-5">Upload disabled</h3>
-                          <p className="text-sm text-white/40 mt-2">
-                            PDF, DOCX, TXT, and crawler training will unlock when the knowledge module is connected.
-                          </p>
                           <button
                             type="button"
-                            disabled
-                            className="mt-5 w-full inline-flex items-center justify-center gap-2 px-5 py-3 text-sm font-semibold text-white/35 bg-white/5 border border-white/10 rounded-xl cursor-not-allowed"
+                            onClick={refreshKnowledgeDocuments}
+                            disabled={isLoadingKnowledge}
+                            className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-white/60 hover:bg-white/10 hover:text-white disabled:opacity-50"
+                            aria-label="Refresh documents"
+                            title="Refresh documents"
                           >
-                            <Lock className="w-4 h-4" />
-                            Coming Soon
+                            <RefreshCw className={`w-4 h-4 ${isLoadingKnowledge ? 'animate-spin' : ''}`} />
                           </button>
+                        </div>
+
+                        {knowledgeError && (
+                          <div className="mt-5 rounded-2xl border border-red-400/20 bg-red-500/10 p-4 text-sm text-red-100 flex gap-3">
+                            <AlertCircle className="w-5 h-5 shrink-0" />
+                            <p>{knowledgeError}</p>
+                          </div>
+                        )}
+
+                        <form className="mt-6 rounded-2xl border border-white/10 bg-black/20 p-4" onSubmit={handleUploadKnowledge}>
+                          <label className="block">
+                            <span className="text-xs font-medium text-white/45">Upload PDF, DOCX, or TXT</span>
+                            <input
+                              type="file"
+                              accept=".pdf,.docx,.txt,application/pdf,text/plain,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                              onChange={(event) => setKnowledgeFile(event.target.files?.[0] ?? null)}
+                              disabled={isSavingKnowledge}
+                              className="mt-2 w-full rounded-xl border border-white/10 bg-[#101010] px-4 py-3 text-sm text-white/55 file:mr-3 file:rounded-lg file:border-0 file:bg-white/10 file:px-3 file:py-2 file:text-xs file:font-medium file:text-white hover:file:bg-white/15 disabled:opacity-50"
+                            />
+                          </label>
+                          <button
+                            type="submit"
+                            disabled={isSavingKnowledge || !knowledgeFile}
+                            className="mt-4 w-full inline-flex items-center justify-center gap-2 px-5 py-3 text-sm font-semibold text-vella-black bg-vella-white rounded-xl hover:bg-gray-200 transition-colors disabled:opacity-60"
+                          >
+                            {isSavingKnowledge ? <Loader2 className="w-4 h-4 animate-spin" /> : <UploadCloud className="w-4 h-4" />}
+                            Upload File
+                          </button>
+                        </form>
+
+                        <form className="mt-4 rounded-2xl border border-white/10 bg-black/20 p-4" onSubmit={handleCreateTextKnowledge}>
+                          <label className="block">
+                            <span className="text-xs font-medium text-white/45">Text source name</span>
+                            <input
+                              value={knowledgeTextForm.name}
+                              onChange={(event) => setKnowledgeTextForm((form) => ({ ...form, name: event.target.value }))}
+                              disabled={isSavingKnowledge}
+                              className={inputClass}
+                              placeholder="Shipping policy"
+                            />
+                          </label>
+                          <label className="mt-3 block">
+                            <span className="text-xs font-medium text-white/45">Knowledge text</span>
+                            <textarea
+                              value={knowledgeTextForm.content}
+                              onChange={(event) => setKnowledgeTextForm((form) => ({ ...form, content: event.target.value }))}
+                              disabled={isSavingKnowledge}
+                              className={`${textareaClass} min-h-[130px]`}
+                              placeholder="Paste policy details, product notes, onboarding steps, or any business answer source."
+                            />
+                          </label>
+                          <button
+                            type="submit"
+                            disabled={isSavingKnowledge}
+                            className="mt-4 w-full inline-flex items-center justify-center gap-2 px-5 py-3 text-sm font-semibold text-white border border-white/10 bg-white/5 rounded-xl hover:bg-white/10 transition-colors disabled:opacity-60"
+                          >
+                            {isSavingKnowledge ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
+                            Add Text Source
+                          </button>
+                        </form>
+
+                        <div className="mt-5">
+                          <div className="flex items-center justify-between gap-3">
+                            <p className="text-xs font-medium uppercase tracking-[0.2em] text-white/35">Sources</p>
+                            {isLoadingKnowledge && <Loader2 className="w-4 h-4 text-white/45 animate-spin" />}
+                          </div>
+
+                          <div className="mt-3 space-y-3">
+                            {knowledgeDocuments.map((document) => (
+                              <div key={document.id} className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                                <div className="flex items-start justify-between gap-3">
+                                  <div className="flex min-w-0 gap-3">
+                                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/5">
+                                      <FileText className="w-4 h-4 text-white/55" />
+                                    </div>
+                                    <div className="min-w-0">
+                                      <p className="truncate text-sm font-medium text-white">{document.name}</p>
+                                      <p className="mt-1 text-xs text-white/35">
+                                        {document.source_type === 'text' ? 'Text source' : document.mime_type ?? 'Upload'} - {document.chunk_count} chunks - {shortDate(document.created_at)}
+                                      </p>
+                                    </div>
+                                  </div>
+                                  <span className={`shrink-0 text-[11px] px-2 py-1 rounded-full border capitalize ${knowledgeStatusClass(document.status)}`}>
+                                    {document.status}
+                                  </span>
+                                </div>
+
+                                {document.error_message && (
+                                  <p className="mt-3 rounded-xl border border-red-400/20 bg-red-500/10 px-3 py-2 text-xs text-red-100">
+                                    {document.error_message}
+                                  </p>
+                                )}
+
+                                <div className="mt-4 flex flex-wrap justify-end gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleReprocessKnowledge(document)}
+                                    disabled={isSavingKnowledge || document.status === 'processing'}
+                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-white/10 text-xs text-white/60 hover:bg-white/5 hover:text-white disabled:opacity-50"
+                                  >
+                                    <RefreshCw className="w-3.5 h-3.5" />
+                                    Reprocess
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteKnowledge(document)}
+                                    disabled={isSavingKnowledge}
+                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-red-400/20 text-xs text-red-100/80 hover:bg-red-500/10 disabled:opacity-50"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                    Delete
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+
+                            {knowledgeDocuments.length === 0 && !isLoadingKnowledge && (
+                              <div className="rounded-2xl border border-dashed border-white/10 bg-black/20 p-6 text-center">
+                                <FileText className="w-8 h-8 text-white/25 mx-auto" />
+                                <p className="text-sm text-white/55 mt-3">No documents yet</p>
+                                <p className="text-xs text-white/35 mt-1">Upload or paste a source to train this chatbot.</p>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </aside>
                     </motion.div>

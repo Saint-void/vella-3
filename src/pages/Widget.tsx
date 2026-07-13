@@ -216,6 +216,7 @@ export function Widget() {
           setIsBooting(false);
         }
       }
+      
     }
 
     void bootWidget();

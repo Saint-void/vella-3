@@ -19,6 +19,19 @@ type ApiOptions = Omit<RequestInit, "headers"> & {
   headers?: Record<string, string>;
 };
 
+function hasFormDataBody(body: BodyInit | null | undefined): boolean {
+  return typeof FormData !== "undefined" && body instanceof FormData;
+}
+
+function buildHeaders(options: ApiOptions, accessToken?: string): Record<string, string> {
+  return {
+    ...(hasFormDataBody(options.body) ? {} : { "Content-Type": "application/json" }),
+    ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+    ...API_HEADERS,
+    ...options.headers,
+  };
+}
+
 async function parseResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
     const fallback = `Request failed with status ${response.status}`;
@@ -47,11 +60,7 @@ export async function publicApiRequest<T>(
 ): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...API_HEADERS,
-      ...options.headers,
-    },
+    headers: buildHeaders(options),
   });
 
   return parseResponse<T>(response);
@@ -75,12 +84,7 @@ export async function apiRequest<T>(
 ): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...options,
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${accessToken}`,
-      ...API_HEADERS,
-      ...options.headers,
-    },
+    headers: buildHeaders(options, accessToken),
   });
 
   // Backstop for cases proactive refresh won't catch -- clock skew
@@ -94,12 +98,7 @@ export async function apiRequest<T>(
     if (refreshedToken) {
       const retryResponse = await fetch(`${API_BASE_URL}${path}`, {
         ...options,
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${refreshedToken}`,
-          ...API_HEADERS,
-          ...options.headers,
-        },
+        headers: buildHeaders(options, refreshedToken),
       });
       return parseResponse<T>(retryResponse);
     }
