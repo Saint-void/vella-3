@@ -21,6 +21,7 @@ const AboutPage = lazy(() => import('./pages/AboutPage').then(m => ({ default: m
 const Login = lazy(() => import('./pages/Login').then(m => ({ default: m.Login })));
 const SignUp = lazy(() => import('./pages/SignUp').then(m => ({ default: m.SignUp })));
 const Dashboard = lazy(() => import('./pages/Dashboard').then(m => ({ default: m.Dashboard })));
+const ProfilePage = lazy(() => import('./pages/Profile').then(m => ({ default: m.ProfilePage })));
 const AuthCallback = lazy(() => import('./pages/AuthCallback').then(m => ({ default: m.AuthCallback })));
 const Widget = lazy(() => import('./pages/Widget').then(m => ({ default: m.Widget })));
 const WIDGET_CHATBOT_ID = 'd294bbbd-02e5-4b5b-931f-3bf3f354257a';
@@ -31,6 +32,7 @@ export default function App() {
     location.pathname === '/login' ||
     location.pathname === '/signup' ||
     location.pathname === '/dashboard' ||
+    location.pathname === '/dashboard/profile' ||
     location.pathname === '/auth/callback' ||
     location.pathname.startsWith('/widget/');
 
@@ -87,6 +89,7 @@ export default function App() {
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<SignUp />} />
             <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/dashboard/profile" element={<ProfilePage />} />
             <Route path="/auth/callback" element={<AuthCallback />} />
             <Route path="/widget/:chatbotId" element={<Widget />} />
           </Routes>

@@ -7,6 +7,7 @@ import {
   CheckCircle2,
   Copy,
   FileText,
+  Globe,
   LayoutDashboard,
   Loader2,
   LogOut,
@@ -73,12 +74,20 @@ type KnowledgeTextForm = {
 };
 
 type DashboardView = 'overview' | 'chatbots' | 'analytics' | 'leads';
+type EditorTab = 'settings' | 'faqs' | 'knowledge' | 'publish';
 
 const sidebarLinks: Array<{ id: DashboardView; icon: typeof LayoutDashboard; label: string }> = [
   { id: 'overview', icon: LayoutDashboard, label: 'Overview' },
   { id: 'chatbots', icon: MessageSquare, label: 'Chatbots' },
   { id: 'analytics', icon: BarChart2, label: 'Analytics' },
   { id: 'leads', icon: Users, label: 'Leads' },
+];
+
+const editorTabs: Array<{ id: EditorTab; icon: typeof Settings; label: string }> = [
+  { id: 'settings', icon: Settings, label: 'Settings' },
+  { id: 'faqs', icon: MessageSquare, label: 'FAQs' },
+  { id: 'knowledge', icon: FileText, label: 'Knowledge' },
+  { id: 'publish', icon: Globe, label: 'Publish' },
 ];
 
 const inputClass =
@@ -182,6 +191,7 @@ export function Dashboard() {
   const navigate = useNavigate();
   const [activeView, setActiveView] = useState<DashboardView>('overview');
   const [isChatbotEditorOpen, setIsChatbotEditorOpen] = useState(false);
+  const [editorTab, setEditorTab] = useState<EditorTab>('settings');
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [email, setEmail] = useState<string>();
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -379,6 +389,7 @@ export function Dashboard() {
     setSelectedChatbotId(chatbot.id);
     setChatbotForm(chatbotToForm(chatbot));
     setIsChatbotEditorOpen(true);
+    setEditorTab('settings');
     setChatbotError(null);
     setFaqError(null);
     setKnowledgeError(null);
@@ -394,6 +405,7 @@ export function Dashboard() {
     setFaqs([]);
     setKnowledgeDocuments([]);
     setIsChatbotEditorOpen(true);
+    setEditorTab('settings');
     setChatbotError(null);
     setFaqError(null);
     setKnowledgeError(null);
@@ -784,9 +796,12 @@ export function Dashboard() {
           >
             <LogOut className="w-5 h-5" />
           </button>
-          <div className="w-9 h-9 rounded-full bg-white/10 flex items-center justify-center text-sm font-medium border border-white/10">
+          <Link
+            to="/dashboard/profile"
+            className="w-9 h-9 rounded-full bg-white/10 flex items-center justify-center text-sm font-medium border border-white/10 hover:bg-white/20 transition-colors"
+          >
             {initials(profile, email)}
-          </div>
+          </Link>
         </div>
       </motion.nav>
 
@@ -940,61 +955,6 @@ export function Dashboard() {
                   </div>
                 </div>
               </motion.div>
-
-              <motion.aside
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6 }}
-                className="border border-white/10 bg-[#1c1c1c]/20 backdrop-blur-xl rounded-3xl p-6 shadow-2xl"
-              >
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-sm text-white/40">Profile</p>
-                    <h2 className="text-xl font-semibold text-white mt-1">Account</h2>
-                  </div>
-                  {isLoading && <Loader2 className="w-5 h-5 text-white/50 animate-spin" />}
-                </div>
-
-                <form className="mt-6 space-y-4" onSubmit={handleSaveProfile}>
-                  <label className="block">
-                    <span className="text-xs font-medium text-white/45">First name</span>
-                    <input
-                      value={firstName}
-                      onChange={(event) => setFirstName(event.target.value)}
-                      disabled={isLoading}
-                      className={inputClass}
-                      placeholder="First name"
-                    />
-                  </label>
-                  <label className="block">
-                    <span className="text-xs font-medium text-white/45">Last name</span>
-                    <input
-                      value={lastName}
-                      onChange={(event) => setLastName(event.target.value)}
-                      disabled={isLoading}
-                      className={inputClass}
-                      placeholder="Last name"
-                    />
-                  </label>
-                  <label className="block">
-                    <span className="text-xs font-medium text-white/45">Email</span>
-                    <input
-                      value={email ?? ''}
-                      disabled
-                      className="mt-2 w-full bg-[#101010] border border-white/10 rounded-xl px-4 py-3 text-sm text-white/50 disabled:opacity-70"
-                    />
-                  </label>
-
-                  <button
-                    type="submit"
-                    disabled={isLoading || isSavingProfile}
-                    className="w-full inline-flex items-center justify-center gap-2 px-5 py-3 text-sm font-semibold text-vella-black bg-vella-white rounded-xl hover:bg-gray-200 transition-colors disabled:opacity-60"
-                  >
-                    {isSavingProfile ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                    Save Profile
-                  </button>
-                </form>
-              </motion.aside>
             </section>
           )}
 
@@ -1072,7 +1032,7 @@ export function Dashboard() {
                   <p className="text-sm text-white/40 mt-2 max-w-md">Select a chatbot to configure it, or use New Chatbot to reveal the creation form.</p>
                 </motion.div>
               ) : (
-                <section className="grid grid-cols-1 xl:grid-cols-[1fr_360px] gap-6">
+                <section>
                   <motion.div
                     initial={{ opacity: 0, y: 18 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -1115,208 +1075,181 @@ export function Dashboard() {
                       </div>
                     )}
 
-                    <form className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4" onSubmit={handleSaveChatbot}>
-                      <label className="block">
-                        <span className="text-xs font-medium text-white/45">Chatbot name</span>
-                        <input
-                          value={chatbotForm.name}
-                          onChange={(event) => setChatbotForm((form) => ({ ...form, name: event.target.value }))}
-                          disabled={isSavingChatbot}
-                          className={inputClass}
-                          placeholder="Support Assistant"
-                        />
-                      </label>
-                      <label className="block">
-                        <span className="text-xs font-medium text-white/45">Business name</span>
-                        <input
-                          value={chatbotForm.business_name}
-                          onChange={(event) => setChatbotForm((form) => ({ ...form, business_name: event.target.value }))}
-                          disabled={isSavingChatbot}
-                          className={inputClass}
-                          placeholder="Acme Stores"
-                        />
-                      </label>
-                      <label className="block">
-                        <span className="text-xs font-medium text-white/45">Industry</span>
-                        <input
-                          value={chatbotForm.industry}
-                          onChange={(event) => setChatbotForm((form) => ({ ...form, industry: event.target.value }))}
-                          disabled={isSavingChatbot}
-                          className={inputClass}
-                          placeholder="Ecommerce, healthcare, education"
-                        />
-                      </label>
-                      <label className="block">
-                        <span className="text-xs font-medium text-white/45">Website domain</span>
-                        <input
-                          value={chatbotForm.website_domain}
-                          onChange={(event) => setChatbotForm((form) => ({ ...form, website_domain: event.target.value }))}
-                          disabled={isSavingChatbot}
-                          className={inputClass}
-                          placeholder="example.com"
-                        />
-                      </label>
-                      <label className="block">
-                        <span className="text-xs font-medium text-white/45">Tone</span>
-                        <select
-                          value={chatbotForm.tone}
-                          onChange={(event) => setChatbotForm((form) => ({ ...form, tone: event.target.value }))}
-                          disabled={isSavingChatbot}
-                          className={inputClass}
-                        >
-                          <option value="friendly">Friendly</option>
-                          <option value="professional">Professional</option>
-                          <option value="concise">Concise</option>
-                          <option value="warm">Warm</option>
-                          <option value="luxury">Luxury</option>
-                        </select>
-                      </label>
-                      <label className="block">
-                        <span className="text-xs font-medium text-white/45">Status</span>
-                        <select
-                          value={chatbotForm.status}
-                          onChange={(event) => setChatbotForm((form) => ({ ...form, status: event.target.value as Chatbot['status'] }))}
-                          disabled={isSavingChatbot || isCreatingChatbot}
-                          className={inputClass}
-                        >
-                          <option value="draft">Draft</option>
-                          <option value="active">Active</option>
-                          <option value="paused">Paused</option>
-                          <option value="archived">Archived</option>
-                        </select>
-                      </label>
-                      <label className="block">
-                        <span className="text-xs font-medium text-white/45">Brand color</span>
-                        <div className="mt-2 flex gap-3">
-                          <input
-                            type="color"
-                            value={colorInputValue(chatbotForm.brand_color)}
-                            onChange={(event) => setChatbotForm((form) => ({ ...form, brand_color: event.target.value }))}
-                            disabled={isSavingChatbot}
-                            className="h-[46px] w-14 rounded-xl bg-[#101010] border border-white/10 p-1 disabled:opacity-50"
-                          />
-                          <input
-                            value={chatbotForm.brand_color}
-                            onChange={(event) => setChatbotForm((form) => ({ ...form, brand_color: event.target.value }))}
-                            disabled={isSavingChatbot}
-                            className={inputClass.replace('mt-2 ', '')}
-                            placeholder="#111111"
-                          />
-                        </div>
-                      </label>
-                      <label className="block">
-                        <span className="text-xs font-medium text-white/45">Handoff email</span>
-                        <input
-                          value={chatbotForm.handoff_email}
-                          onChange={(event) => setChatbotForm((form) => ({ ...form, handoff_email: event.target.value }))}
-                          disabled={isSavingChatbot}
-                          className={inputClass}
-                          placeholder="support@example.com"
-                        />
-                      </label>
-                      <label className="block md:col-span-2">
-                        <span className="text-xs font-medium text-white/45">Support goal</span>
-                        <textarea
-                          value={chatbotForm.support_goal}
-                          onChange={(event) => setChatbotForm((form) => ({ ...form, support_goal: event.target.value }))}
-                          disabled={isSavingChatbot}
-                          className={textareaClass}
-                          placeholder="Help customers choose products, answer delivery questions, and collect leads when support is offline."
-                        />
-                      </label>
-                      <label className="block md:col-span-2">
-                        <span className="text-xs font-medium text-white/45">Greeting message</span>
-                        <textarea
-                          value={chatbotForm.greeting_message}
-                          onChange={(event) => setChatbotForm((form) => ({ ...form, greeting_message: event.target.value }))}
-                          disabled={isSavingChatbot}
-                          className={textareaClass}
-                          placeholder="Hi! How can I help you today?"
-                        />
-                      </label>
-                      <div className="md:col-span-2 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                        <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white/45">
-                          {selectedChatbot ? `Created ${shortDate(selectedChatbot.created_at)}` : 'This will create a draft chatbot.'}
-                        </div>
-                        <button
-                          type="submit"
-                          disabled={isSavingChatbot || isLoading}
-                          className="inline-flex items-center justify-center gap-2 px-5 py-3 text-sm font-semibold text-vella-black bg-vella-white rounded-xl hover:bg-gray-200 transition-colors disabled:opacity-60"
-                        >
-                          {isSavingChatbot ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                          {isCreatingChatbot ? 'Create Chatbot' : 'Save Settings'}
-                        </button>
-                      </div>
-                    </form>
+                    {/* Tab Bar */}
+                    <div className="mt-6 flex gap-1 p-1 bg-white/5 rounded-xl">
+                      {editorTabs.map((tab) => {
+                        const Icon = tab.icon;
+                        return (
+                          <button
+                            key={tab.id}
+                            type="button"
+                            onClick={() => setEditorTab(tab.id)}
+                            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                              editorTab === tab.id
+                                ? 'bg-vella-white text-vella-black'
+                                : 'text-white/60 hover:text-white hover:bg-white/5'
+                            }`}
+                          >
+                            <Icon className="w-4 h-4" />
+                            {tab.label}
+                          </button>
+                        );
+                      })}
+                    </div>
                   </motion.div>
 
-                  <motion.aside
-                    initial={{ opacity: 0, y: 18 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.65 }}
-                    className="border border-white/10 bg-[#1c1c1c]/20 backdrop-blur-xl rounded-3xl p-6 shadow-2xl"
-                  >
-                    <div className="flex items-start justify-between gap-4">
-                      <div>
-                        <p className="text-sm text-white/40">Preview</p>
-                        <h2 className="text-xl font-semibold text-white mt-1">Widget install</h2>
-                      </div>
-                      {selectedChatbot && (
-                        <button
-                          type="button"
-                          onClick={copyWidgetSnippet}
-                          disabled={!widgetSnippet}
-                          className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-medium text-white/70 transition-colors hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                          <Copy className="h-3.5 w-3.5" />
-                          {copiedSnippet ? 'Copied' : 'Copy snippet'}
-                        </button>
-                      )}
-                    </div>
+                  {/* Tab Content */}
+                  <div className="mt-6">
+                    {editorTab === 'settings' && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 18 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.5 }}
+                        className="border border-white/10 bg-[#1c1c1c]/20 backdrop-blur-xl rounded-3xl p-6 shadow-2xl"
+                      >
+                        <form className="grid grid-cols-1 md:grid-cols-2 gap-4" onSubmit={handleSaveChatbot}>
+                          <label className="block">
+                            <span className="text-xs font-medium text-white/45">Chatbot name</span>
+                            <input
+                              value={chatbotForm.name}
+                              onChange={(event) => setChatbotForm((form) => ({ ...form, name: event.target.value }))}
+                              disabled={isSavingChatbot}
+                              className={inputClass}
+                              placeholder="Support Assistant"
+                            />
+                          </label>
+                          <label className="block">
+                            <span className="text-xs font-medium text-white/45">Business name</span>
+                            <input
+                              value={chatbotForm.business_name}
+                              onChange={(event) => setChatbotForm((form) => ({ ...form, business_name: event.target.value }))}
+                              disabled={isSavingChatbot}
+                              className={inputClass}
+                              placeholder="Acme Stores"
+                            />
+                          </label>
+                          <label className="block">
+                            <span className="text-xs font-medium text-white/45">Industry</span>
+                            <input
+                              value={chatbotForm.industry}
+                              onChange={(event) => setChatbotForm((form) => ({ ...form, industry: event.target.value }))}
+                              disabled={isSavingChatbot}
+                              className={inputClass}
+                              placeholder="Ecommerce, healthcare, education"
+                            />
+                          </label>
+                          <label className="block">
+                            <span className="text-xs font-medium text-white/45">Website domain</span>
+                            <input
+                              value={chatbotForm.website_domain}
+                              onChange={(event) => setChatbotForm((form) => ({ ...form, website_domain: event.target.value }))}
+                              disabled={isSavingChatbot}
+                              className={inputClass}
+                              placeholder="example.com"
+                            />
+                          </label>
+                          <label className="block">
+                            <span className="text-xs font-medium text-white/45">Tone</span>
+                            <select
+                              value={chatbotForm.tone}
+                              onChange={(event) => setChatbotForm((form) => ({ ...form, tone: event.target.value }))}
+                              disabled={isSavingChatbot}
+                              className={inputClass}
+                            >
+                              <option value="friendly">Friendly</option>
+                              <option value="professional">Professional</option>
+                              <option value="concise">Concise</option>
+                              <option value="warm">Warm</option>
+                              <option value="luxury">Luxury</option>
+                            </select>
+                          </label>
+                          <label className="block">
+                            <span className="text-xs font-medium text-white/45">Status</span>
+                            <select
+                              value={chatbotForm.status}
+                              onChange={(event) => setChatbotForm((form) => ({ ...form, status: event.target.value as Chatbot['status'] }))}
+                              disabled={isSavingChatbot || isCreatingChatbot}
+                              className={inputClass}
+                            >
+                              <option value="draft">Draft</option>
+                              <option value="active">Active</option>
+                              <option value="paused">Paused</option>
+                              <option value="archived">Archived</option>
+                            </select>
+                          </label>
+                          <label className="block">
+                            <span className="text-xs font-medium text-white/45">Brand color</span>
+                            <div className="mt-2 flex gap-3">
+                              <input
+                                type="color"
+                                value={colorInputValue(chatbotForm.brand_color)}
+                                onChange={(event) => setChatbotForm((form) => ({ ...form, brand_color: event.target.value }))}
+                                disabled={isSavingChatbot}
+                                className="h-[46px] w-14 rounded-xl bg-[#101010] border border-white/10 p-1 disabled:opacity-50"
+                              />
+                              <input
+                                value={chatbotForm.brand_color}
+                                onChange={(event) => setChatbotForm((form) => ({ ...form, brand_color: event.target.value }))}
+                                disabled={isSavingChatbot}
+                                className={inputClass.replace('mt-2 ', '')}
+                                placeholder="#111111"
+                              />
+                            </div>
+                          </label>
+                          <label className="block">
+                            <span className="text-xs font-medium text-white/45">Handoff email</span>
+                            <input
+                              value={chatbotForm.handoff_email}
+                              onChange={(event) => setChatbotForm((form) => ({ ...form, handoff_email: event.target.value }))}
+                              disabled={isSavingChatbot}
+                              className={inputClass}
+                              placeholder="support@example.com"
+                            />
+                          </label>
+                          <label className="block md:col-span-2">
+                            <span className="text-xs font-medium text-white/45">Support goal</span>
+                            <textarea
+                              value={chatbotForm.support_goal}
+                              onChange={(event) => setChatbotForm((form) => ({ ...form, support_goal: event.target.value }))}
+                              disabled={isSavingChatbot}
+                              className={textareaClass}
+                              placeholder="Help customers choose products, answer delivery questions, and collect leads when support is offline."
+                            />
+                          </label>
+                          <label className="block md:col-span-2">
+                            <span className="text-xs font-medium text-white/45">Greeting message</span>
+                            <textarea
+                              value={chatbotForm.greeting_message}
+                              onChange={(event) => setChatbotForm((form) => ({ ...form, greeting_message: event.target.value }))}
+                              disabled={isSavingChatbot}
+                              className={textareaClass}
+                              placeholder="Hi! How can I help you today?"
+                            />
+                          </label>
+                          <div className="md:col-span-2 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                            <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white/45">
+                              {selectedChatbot ? `Created ${shortDate(selectedChatbot.created_at)}` : 'This will create a draft chatbot.'}
+                            </div>
+                            <button
+                              type="submit"
+                              disabled={isSavingChatbot || isLoading}
+                              className="inline-flex items-center justify-center gap-2 px-5 py-3 text-sm font-semibold text-vella-black bg-vella-white rounded-xl hover:bg-gray-200 transition-colors disabled:opacity-60"
+                            >
+                              {isSavingChatbot ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                              {isCreatingChatbot ? 'Create Chatbot' : 'Save Settings'}
+                            </button>
+                          </div>
+                        </form>
+                      </motion.div>
+                    )}
 
-                    <div className="mt-6 rounded-2xl border border-white/10 bg-[#101010] p-4">
-                      <div className="flex items-center gap-3">
-                        <div
-                          className="flex h-9 w-9 items-center justify-center rounded-full border border-white/10"
-                          style={{ backgroundColor: colorInputValue(chatbotForm.brand_color) }}
-                        >
-                          <Bot className="w-4 h-4 text-white" />
-                        </div>
-                        <div>
-                          <p className="text-sm font-medium text-white">{chatbotForm.name || 'Support Assistant'}</p>
-                          <p className="text-xs text-white/35">{chatbotForm.tone || 'friendly'} tone</p>
-                        </div>
-                      </div>
-                      <p className="mt-4 rounded-xl bg-white/5 px-4 py-3 text-sm text-white/65">
-                        {chatbotForm.greeting_message || 'Hi! How can I help you today?'}
-                      </p>
-                    </div>
-
-                    <div className="mt-4 rounded-2xl border border-white/10 bg-black/20 p-4">
-                      <p className="text-xs font-medium uppercase tracking-[0.2em] text-white/35">Embed code</p>
-                      {widgetSnippet ? (
-                        <pre className="mt-3 overflow-x-auto rounded-xl border border-white/10 bg-black/40 p-4 text-[11px] leading-relaxed text-white/70">{widgetSnippet}</pre>
-                      ) : (
-                        <div className="mt-3 rounded-xl border border-dashed border-white/10 bg-white/5 px-4 py-3 text-sm text-white/45">
-                          {selectedChatbot
-                            ? 'Set a website domain and mark this chatbot active to generate the install snippet.'
-                            : 'Save a chatbot to generate its install snippet.'}
-                        </div>
-                      )}
-                      <p className="mt-3 text-xs leading-relaxed text-white/35">
-                        The backend only serves active widgets from their configured website domain.
-                      </p>
-                    </div>
-                  </motion.aside>
-
-                  {!isCreatingChatbot && selectedChatbot && (
-                    <motion.div
-                      initial={{ opacity: 0, y: 18 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.7 }}
-                      className="xl:col-span-2 grid grid-cols-1 xl:grid-cols-[1fr_360px] gap-6"
-                    >
-                      <div className="border border-white/10 bg-[#1c1c1c]/20 backdrop-blur-xl rounded-3xl p-6 shadow-2xl">
+                    {editorTab === 'faqs' && !isCreatingChatbot && selectedChatbot && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 18 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.5 }}
+                        className="border border-white/10 bg-[#1c1c1c]/20 backdrop-blur-xl rounded-3xl p-6 shadow-2xl"
+                      >
                         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
                           <div>
                             <p className="text-sm text-white/40">Manual knowledge</p>
@@ -1452,9 +1385,16 @@ export function Dashboard() {
                             </div>
                           )}
                         </div>
-                      </div>
+                      </motion.div>
+                    )}
 
-                      <aside className="border border-white/10 bg-[#1c1c1c]/20 backdrop-blur-xl rounded-3xl p-6 shadow-2xl">
+                    {editorTab === 'knowledge' && !isCreatingChatbot && selectedChatbot && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 18 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.5 }}
+                        className="border border-white/10 bg-[#1c1c1c]/20 backdrop-blur-xl rounded-3xl p-6 shadow-2xl"
+                      >
                         <div className="flex items-start justify-between gap-3">
                           <div>
                             <p className="text-sm text-white/40">Knowledge upload</p>
@@ -1658,9 +1598,81 @@ export function Dashboard() {
                             )}
                           </div>
                         </div>
-                      </aside>
-                    </motion.div>
-                  )}
+                      </motion.div>
+                    )}
+
+                    {editorTab === 'publish' && !isCreatingChatbot && selectedChatbot && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 18 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.5 }}
+                        className="border border-white/10 bg-[#1c1c1c]/20 backdrop-blur-xl rounded-3xl p-6 shadow-2xl"
+                      >
+                        <div className="flex items-start justify-between gap-4">
+                          <div>
+                            <p className="text-sm text-white/40">Preview</p>
+                            <h2 className="text-xl font-semibold text-white mt-1">Widget install</h2>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={copyWidgetSnippet}
+                            disabled={!widgetSnippet}
+                            className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-medium text-white/70 transition-colors hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            <Copy className="h-3.5 w-3.5" />
+                            {copiedSnippet ? 'Copied' : 'Copy snippet'}
+                          </button>
+                        </div>
+
+                        <div className="mt-6 rounded-2xl border border-white/10 bg-[#101010] p-4">
+                          <div className="flex items-center gap-3">
+                            <div
+                              className="flex h-9 w-9 items-center justify-center rounded-full border border-white/10"
+                              style={{ backgroundColor: colorInputValue(chatbotForm.brand_color) }}
+                            >
+                              <Bot className="w-4 h-4 text-white" />
+                            </div>
+                            <div>
+                              <p className="text-sm font-medium text-white">{chatbotForm.name || 'Support Assistant'}</p>
+                              <p className="text-xs text-white/35">{chatbotForm.tone || 'friendly'} tone</p>
+                            </div>
+                          </div>
+                          <p className="mt-4 rounded-xl bg-white/5 px-4 py-3 text-sm text-white/65">
+                            {chatbotForm.greeting_message || 'Hi! How can I help you today?'}
+                          </p>
+                        </div>
+
+                        <div className="mt-4 rounded-2xl border border-white/10 bg-black/20 p-4">
+                          <p className="text-xs font-medium uppercase tracking-[0.2em] text-white/35">Embed code</p>
+                          {widgetSnippet ? (
+                            <pre className="mt-3 overflow-x-auto rounded-xl border border-white/10 bg-black/40 p-4 text-[11px] leading-relaxed text-white/70">{widgetSnippet}</pre>
+                          ) : (
+                            <div className="mt-3 rounded-xl border border-dashed border-white/10 bg-white/5 px-4 py-3 text-sm text-white/45">
+                              Set a website domain and mark this chatbot active to generate the install snippet.
+                            </div>
+                          )}
+                          <p className="mt-3 text-xs leading-relaxed text-white/35">
+                            The backend only serves active widgets from their configured website domain.
+                          </p>
+                        </div>
+                      </motion.div>
+                    )}
+
+                    {(editorTab === 'faqs' || editorTab === 'knowledge' || editorTab === 'publish') && isCreatingChatbot && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 18 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.5 }}
+                        className="border border-white/10 bg-[#1c1c1c]/20 backdrop-blur-xl rounded-3xl p-6 shadow-2xl text-center"
+                      >
+                        <Settings className="w-10 h-10 text-white/25 mx-auto" />
+                        <h2 className="text-xl font-semibold text-white/75 mt-4">Save your chatbot first</h2>
+                        <p className="text-sm text-white/40 mt-2 max-w-md mx-auto">
+                          Create the chatbot to access {editorTab === 'faqs' ? 'FAQs' : editorTab === 'knowledge' ? 'Knowledge' : 'Publish'} features.
+                        </p>
+                      </motion.div>
+                    )}
+                  </div>
                 </section>
               )}
             </section>
