@@ -1,4 +1,4 @@
-import { apiRequest } from "./api";
+import { API_BASE_URL, apiRequest } from "./api";
 
 export type KnowledgeDocument = {
   id: string;
@@ -52,7 +52,7 @@ export function uploadKnowledgeDocumentWithProgress(
     formData.append("file", file);
 
     const xhr = new XMLHttpRequest();
-    xhr.open("POST", `/api/v1/chatbots/${chatbotId}/knowledge/documents/upload`);
+    xhr.open("POST", `${API_BASE_URL}/api/v1/chatbots/${chatbotId}/knowledge/documents/upload`);
     xhr.setRequestHeader("Authorization", `Bearer ${accessToken}`);
 
     xhr.upload.onprogress = (event) => {
