@@ -66,7 +66,14 @@ export function uploadKnowledgeDocumentWithProgress(
       if (xhr.status >= 200 && xhr.status < 300) {
         resolve(JSON.parse(xhr.responseText));
       } else {
-        reject(new Error(`Upload failed: ${xhr.statusText}`));
+        let message = `Upload failed with status ${xhr.status}`;
+        try {
+          const body = JSON.parse(xhr.responseText);
+          message = body.message ?? body.error ?? message;
+        } catch {
+          // Use default message
+        }
+        reject(new Error(message));
       }
     };
 
