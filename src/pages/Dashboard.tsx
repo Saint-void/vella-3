@@ -43,6 +43,7 @@ import {
   listKnowledgeDocuments,
   reprocessKnowledgeDocument,
   uploadKnowledgeDocument,
+  uploadKnowledgeDocumentWithProgress,
 } from '../lib/knowledge';
 
 type Profile = {
@@ -165,6 +166,14 @@ function shortDate(date: string) {
   return new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' }).format(new Date(date));
 }
 
+function formatFileSize(bytes: number) {
+  if (bytes === 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+}
+
 function colorInputValue(color: string) {
   return /^#[0-9A-Fa-f]{6}$/.test(color) ? color : '#111111';
 }
@@ -195,6 +204,8 @@ export function Dashboard() {
   const [isSavingChatbot, setIsSavingChatbot] = useState(false);
   const [isSavingFaq, setIsSavingFaq] = useState(false);
   const [isSavingKnowledge, setIsSavingKnowledge] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
   const [copiedSnippet, setCopiedSnippet] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [chatbotError, setChatbotError] = useState<string | null>(null);
@@ -630,19 +641,62 @@ export function Dashboard() {
 
     setIsSavingKnowledge(true);
     setKnowledgeError(null);
+    setUploadProgress(0);
 
     try {
-      const created = await uploadKnowledgeDocument(accessToken, selectedChatbot.id, knowledgeFile);
+      const created = await uploadKnowledgeDocumentWithProgress(
+        accessToken,
+        selectedChatbot.id,
+        knowledgeFile,
+        (progress) => setUploadProgress(progress)
+      );
       setKnowledgeDocuments((current) => [created, ...current]);
       setKnowledgeFile(null);
-      event.currentTarget.reset();
+      setUploadProgress(null);
       window.setTimeout(() => {
         void refreshKnowledgeDocuments();
       }, 1500);
     } catch (err) {
       setKnowledgeError(err instanceof Error ? err.message : 'Could not upload knowledge file.');
+      setUploadProgress(null);
     } finally {
       setIsSavingKnowledge(false);
+    }
+  };
+
+  const handleDragEnter = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+
+    const files = e.dataTransfer.files;
+    if (files.length > 0) {
+      const file = files[0];
+      const validTypes = ['.pdf', '.docx', '.txt'];
+      const fileExtension = '.' + file.name.split('.').pop()?.toLowerCase();
+      
+      if (validTypes.includes(fileExtension)) {
+        setKnowledgeFile(file);
+      } else {
+        setKnowledgeError('Only PDF, DOCX, and TXT files are supported');
+      }
     }
   };
 
@@ -1425,17 +1479,72 @@ export function Dashboard() {
                           </div>
                         )}
 
-                        <form className="mt-6 rounded-2xl border border-white/10 bg-black/20 p-4" onSubmit={handleUploadKnowledge}>
+                        <form 
+                          className={`mt-6 rounded-2xl border p-4 transition-all duration-300 ${
+                            isDragging 
+                              ? 'border-vella-white/50 bg-vella-white/10 shadow-[0_0_30px_rgba(255,255,255,0.15)]' 
+                              : 'border-white/10 bg-black/20'
+                          }`}
+                          onSubmit={handleUploadKnowledge}
+                          onDragEnter={handleDragEnter}
+                          onDragLeave={handleDragLeave}
+                          onDragOver={handleDragOver}
+                          onDrop={handleDrop}
+                        >
                           <label className="block">
                             <span className="text-xs font-medium text-white/45">Upload PDF, DOCX, or TXT</span>
-                            <input
-                              type="file"
-                              accept=".pdf,.docx,.txt,application/pdf,text/plain,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                              onChange={(event) => setKnowledgeFile(event.target.files?.[0] ?? null)}
-                              disabled={isSavingKnowledge}
-                              className="mt-2 w-full rounded-xl border border-white/10 bg-[#101010] px-4 py-3 text-sm text-white/55 file:mr-3 file:rounded-lg file:border-0 file:bg-white/10 file:px-3 file:py-2 file:text-xs file:font-medium file:text-white hover:file:bg-white/15 disabled:opacity-50"
-                            />
+                            <div className={`mt-2 w-full rounded-xl border-2 border-dashed p-6 text-center transition-all duration-300 ${
+                              isDragging 
+                                ? 'border-vella-white/50 bg-vella-white/5' 
+                                : 'border-white/10 bg-[#101010]'
+                            }`}>
+                              <UploadCloud className={`w-8 h-8 mx-auto mb-3 transition-colors ${isDragging ? 'text-vella-white' : 'text-white/40'}`} />
+                              <p className="text-sm text-white/55">
+                                {isDragging ? 'Drop your file here' : 'Drag & drop or click to upload'}
+                              </p>
+                              <p className="text-xs text-white/35 mt-1">PDF, DOCX, or TXT up to 10MB</p>
+                              <input
+                                type="file"
+                                accept=".pdf,.docx,.txt,application/pdf,text/plain,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                                onChange={(event) => setKnowledgeFile(event.target.files?.[0] ?? null)}
+                                disabled={isSavingKnowledge}
+                                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                              />
+                            </div>
                           </label>
+
+                          {knowledgeFile && (
+                            <div className="mt-3 flex items-center gap-3 p-3 rounded-xl bg-white/5">
+                              <FileText className="w-5 h-5 text-white/55 shrink-0" />
+                              <div className="min-w-0 flex-1">
+                                <p className="text-sm text-white truncate">{knowledgeFile.name}</p>
+                                <p className="text-xs text-white/40">{(knowledgeFile.size / 1024).toFixed(1)} KB</p>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => setKnowledgeFile(null)}
+                                className="text-white/40 hover:text-white"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          )}
+
+                          {uploadProgress !== null && (
+                            <div className="mt-4">
+                              <div className="flex justify-between text-xs text-white/55 mb-2">
+                                <span>Uploading...</span>
+                                <span>{uploadProgress}%</span>
+                              </div>
+                              <div className="w-full bg-white/10 rounded-full h-2">
+                                <div 
+                                  className="bg-vella-white h-2 rounded-full transition-all duration-300"
+                                  style={{ width: `${uploadProgress}%` }}
+                                />
+                              </div>
+                            </div>
+                          )}
+
                           <button
                             type="submit"
                             disabled={isSavingKnowledge || !knowledgeFile}
@@ -1489,12 +1598,18 @@ export function Dashboard() {
                                 <div className="flex items-start justify-between gap-3">
                                   <div className="flex min-w-0 gap-3">
                                     <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/5">
-                                      <FileText className="w-4 h-4 text-white/55" />
+                                      {document.mime_type?.includes('pdf') ? (
+                                        <FileText className="w-4 h-4 text-red-400" />
+                                      ) : document.mime_type?.includes('wordprocessingml') || document.mime_type?.includes('docx') ? (
+                                        <FileText className="w-4 h-4 text-blue-400" />
+                                      ) : (
+                                        <FileText className="w-4 h-4 text-white/55" />
+                                      )}
                                     </div>
                                     <div className="min-w-0">
                                       <p className="truncate text-sm font-medium text-white">{document.name}</p>
                                       <p className="mt-1 text-xs text-white/35">
-                                        {document.source_type === 'text' ? 'Text source' : document.mime_type ?? 'Upload'} - {document.chunk_count} chunks - {shortDate(document.created_at)}
+                                        {document.source_type === 'text' ? 'Text source' : document.mime_type ?? 'Upload'} - {formatFileSize(document.file_size)} - {shortDate(document.created_at)}
                                       </p>
                                     </div>
                                   </div>

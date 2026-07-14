@@ -10,6 +10,7 @@ export type KnowledgeDocument = {
   error_message: string | null;
   character_count: number;
   chunk_count: number;
+  file_size: number;
   created_at: string;
   updated_at: string;
 };
@@ -37,6 +38,40 @@ export function uploadKnowledgeDocument(accessToken: string, chatbotId: string, 
   return apiRequest<KnowledgeDocument>(`/api/v1/chatbots/${chatbotId}/knowledge/documents/upload`, accessToken, {
     method: "POST",
     body: formData,
+  });
+}
+
+export function uploadKnowledgeDocumentWithProgress(
+  accessToken: string,
+  chatbotId: string,
+  file: File,
+  onProgress: (progress: number) => void
+): Promise<KnowledgeDocument> {
+  return new Promise((resolve, reject) => {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", `/api/v1/chatbots/${chatbotId}/knowledge/documents/upload`);
+    xhr.setRequestHeader("Authorization", `Bearer ${accessToken}`);
+
+    xhr.upload.onprogress = (event) => {
+      if (event.lengthComputable) {
+        const progress = Math.round((event.loaded / event.total) * 100);
+        onProgress(progress);
+      }
+    };
+
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve(JSON.parse(xhr.responseText));
+      } else {
+        reject(new Error(`Upload failed: ${xhr.statusText}`));
+      }
+    };
+
+    xhr.onerror = () => reject(new Error("Upload failed"));
+    xhr.send(formData);
   });
 }
 
