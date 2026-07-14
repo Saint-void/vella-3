@@ -1491,44 +1491,46 @@ export function Dashboard() {
                           onDragOver={handleDragOver}
                           onDrop={handleDrop}
                         >
-                          <label className="block">
-                            <span className="text-xs font-medium text-white/45">Upload PDF, DOCX, or TXT</span>
-                            <div className={`mt-2 w-full rounded-xl border-2 border-dashed p-6 text-center transition-all duration-300 ${
-                              isDragging 
-                                ? 'border-vella-white/50 bg-vella-white/5' 
-                                : 'border-white/10 bg-[#101010]'
-                            }`}>
-                              <UploadCloud className={`w-8 h-8 mx-auto mb-3 transition-colors ${isDragging ? 'text-vella-white' : 'text-white/40'}`} />
-                              <p className="text-sm text-white/55">
-                                {isDragging ? 'Drop your file here' : 'Drag & drop or click to upload'}
-                              </p>
-                              <p className="text-xs text-white/35 mt-1">PDF, DOCX, or TXT up to 10MB</p>
-                              <input
-                                type="file"
-                                accept=".pdf,.docx,.txt,application/pdf,text/plain,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                                onChange={(event) => setKnowledgeFile(event.target.files?.[0] ?? null)}
-                                disabled={isSavingKnowledge}
-                                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                              />
-                            </div>
-                          </label>
-
-                          {knowledgeFile && (
-                            <div className="mt-3 flex items-center gap-3 p-3 rounded-xl bg-white/5">
-                              <FileText className="w-5 h-5 text-white/55 shrink-0" />
-                              <div className="min-w-0 flex-1">
-                                <p className="text-sm text-white truncate">{knowledgeFile.name}</p>
-                                <p className="text-xs text-white/40">{(knowledgeFile.size / 1024).toFixed(1)} KB</p>
+                          {!knowledgeFile && !uploadProgress ? (
+                            <label className="block cursor-pointer">
+                              <span className="text-xs font-medium text-white/45">Upload PDF, DOCX, or TXT</span>
+                              <div className={`mt-2 w-full rounded-xl border-2 border-dashed p-6 text-center transition-all duration-300 ${
+                                isDragging 
+                                  ? 'border-vella-white/50 bg-vella-white/5' 
+                                  : 'border-white/10 bg-[#101010] hover:border-white/20'
+                              }`}>
+                                <UploadCloud className={`w-8 h-8 mx-auto mb-3 transition-colors ${isDragging ? 'text-vella-white' : 'text-white/40'}`} />
+                                <p className="text-sm text-white/55">
+                                  {isDragging ? 'Drop your file here' : 'Drag & drop or click to upload'}
+                                </p>
+                                <p className="text-xs text-white/35 mt-1">PDF, DOCX, or TXT up to 10MB</p>
+                                <input
+                                  type="file"
+                                  accept=".pdf,.docx,.txt,application/pdf,text/plain,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                                  onChange={(event) => setKnowledgeFile(event.target.files?.[0] ?? null)}
+                                  disabled={isSavingKnowledge}
+                                  className="hidden"
+                                />
                               </div>
-                              <button
-                                type="button"
-                                onClick={() => setKnowledgeFile(null)}
-                                className="text-white/40 hover:text-white"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
+                            </label>
+                          ) : knowledgeFile ? (
+                            <div className="rounded-xl border border-white/10 bg-[#101010] p-4">
+                              <div className="flex items-center gap-3">
+                                <FileText className="w-8 h-8 text-white/55 shrink-0" />
+                                <div className="min-w-0 flex-1">
+                                  <p className="text-sm font-medium text-white truncate">{knowledgeFile.name}</p>
+                                  <p className="text-xs text-white/40">{(knowledgeFile.size / 1024).toFixed(1)} KB</p>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => setKnowledgeFile(null)}
+                                  className="p-2 rounded-lg text-white/40 hover:text-white hover:bg-white/10 transition-colors"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </div>
                             </div>
-                          )}
+                          ) : null}
 
                           {uploadProgress !== null && (
                             <div className="mt-4">
