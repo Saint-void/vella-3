@@ -307,10 +307,13 @@ export function Widget() {
     try {
       if (!chatbotId) return;
       
-      const currentVisitorId = ensureVisitorId();
-      await createConversation(currentVisitorId);
+      // Clear everything immediately for instant feedback
+      setMessages([]);
       setInput('');
       setError(null);
+      
+      const currentVisitorId = ensureVisitorId();
+      await createConversation(currentVisitorId);
       inputRef.current?.focus();
     } catch (err) {
       console.error('Failed to start new chat:', err);

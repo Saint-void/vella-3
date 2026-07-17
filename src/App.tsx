@@ -49,7 +49,7 @@ export default function App() {
 
     const script = document.createElement('script');
     script.async = true;
-    script.src = 'https://vella-3.onrender.com/widget-loader.js';
+    script.src = 'http://localhost:3000/widget-loader.js';
     script.dataset.vellaChatbotId = WIDGET_CHATBOT_ID;
     document.body.appendChild(script);
 
