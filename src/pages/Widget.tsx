@@ -11,8 +11,7 @@ import {
   type WidgetConversation,
   type WidgetMessage,
 } from '../lib/widget';
-import { createAdaptiveCssVariables } from '../lib/theme/ThemeEngine';
-import { DEFAULT_VELLA_THEME, type Theme } from '../lib/theme/types';
+import { useLogoAsset } from '../lib/useLogoAsset';
 
 type ResizeState = {
   width: number;
@@ -91,31 +90,28 @@ export function Widget() {
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isFatalError, setIsFatalError] = useState(false);
-  const [hostTheme, setHostTheme] = useState<Theme>(DEFAULT_VELLA_THEME);
+  const [hostFontFamily, setHostFontFamily] = useState<string | null>(null);
+  const [hasLogoLoadError, setHasLogoLoadError] = useState(false);
+  const logoAssetUrl = useLogoAsset(config?.logo_url);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // The embed loader performs host-page inspection. The iframe only accepts its
-  // normalized result, so it never reads or inherits arbitrary host-page CSS.
   useEffect(() => {
-    const receiveTheme = (event: MessageEvent) => {
-      if (event.source !== window.parent || event.data?.type !== 'vella-widget-theme') return;
-      const candidate = event.data.theme as Partial<Theme> | undefined;
-      if (!candidate) return;
-      setHostTheme((current) => ({ ...current, ...candidate }));
+    const receiveFont = (event: MessageEvent) => {
+      if (event.source !== window.parent || event.data?.type !== 'vella-widget-font') return;
+      if (typeof event.data.fontFamily === 'string' && event.data.fontFamily.trim()) {
+        setHostFontFamily(event.data.fontFamily);
+      }
     };
-    window.addEventListener('message', receiveTheme);
-    window.parent.postMessage({ type: 'vella-widget-theme-ready', chatbotId }, '*');
-    return () => window.removeEventListener('message', receiveTheme);
+    window.addEventListener('message', receiveFont);
+    window.parent.postMessage({ type: 'vella-widget-font-ready', chatbotId }, '*');
+    return () => window.removeEventListener('message', receiveFont);
   }, [chatbotId]);
 
   useEffect(() => {
-    const variables = createAdaptiveCssVariables(hostTheme);
-    for (const [name, value] of Object.entries(variables)) {
-      document.documentElement.style.setProperty(name, value);
-    }
-  }, [hostTheme]);
+    setHasLogoLoadError(false);
+  }, [config?.logo_url]);
 
   const ensureVisitorId = () => {
     if (visitorId) return visitorId;
@@ -349,8 +345,7 @@ export function Widget() {
     setIsOpen(false);
   };
 
-  const brandColor = config?.brand_color || '#6d5dfc';
-  const widgetAccent = hostTheme.accent;
+  const brandColor = config?.brand_color || '#111111';
   const assistantName = config?.name || 'Support assistant';
   const businessName = config?.business_name || 'Vella';
   const greeting = config?.greeting_message || 'Hi! How can I help you today?';
@@ -366,10 +361,7 @@ export function Widget() {
   );
 
   return (
-    <div
-      className="relative h-screen w-screen overflow-hidden bg-transparent"
-      style={{ color: hostTheme.text, fontFamily: hostTheme.fontFamily, fontSize: hostTheme.fontSize, lineHeight: hostTheme.lineHeight }}
-    >
+    <div className="relative h-screen w-screen overflow-hidden bg-transparent" style={hostFontFamily ? { fontFamily: hostFontFamily } : undefined}>
       <div
         className="pointer-events-none absolute inset-0 z-10 rounded-[28px]"
         style={fatalLine}
@@ -391,11 +383,9 @@ export function Widget() {
               style={{
                 width: CLOSED_SIZE.width,
                 height: CLOSED_SIZE.height,
-                backgroundColor: widgetAccent,
-                color: hostTheme.accentText,
                 boxShadow: isFatalError
                   ? 'none'
-                : hostTheme.shadow,
+                : `0 18px 50px color-mix(in srgb, ${brandColor} 32%, transparent)`,
               cursor: isFatalError ? 'default' : 'pointer',
               filter: isFatalError ? 'grayscale(1) opacity(0.35)' : undefined,
             }}
@@ -420,26 +410,21 @@ export function Widget() {
             <div
               className="flex h-full w-full flex-col overflow-hidden rounded-[18px] bg-[#0d0d0d] text-white "
               style={{
-                background: hostTheme.surface,
-                color: hostTheme.text,
-                borderRadius: `min(${hostTheme.radius}, 28px)`,
-                boxShadow: hostTheme.shadow,
+                background: `linear-gradient(180deg, color-mix(in srgb, ${brandColor} 12%, #111111) 0%, #0b0b0b 52%, #090909 100%)`,
               }}
             >
-              <div className="flex items-start justify-between gap-3 border-b border-white/10 px-4 py-4" style={{ borderColor: hostTheme.secondaryText }}>
+              <div className="flex items-start justify-between gap-3 border-b border-white/10 px-4 py-4">
                 <div className="flex items-center gap-3">
                   <div
                     className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-full bg-white/10"
                     style={{ backgroundColor: brandColor }}
                   >
-                    {config?.logo_url ? (
+                    {logoAssetUrl && !hasLogoLoadError ? (
                       <img
-                        src={config.logo_url}
+                        src={logoAssetUrl}
                         alt={assistantName}
                         className="h-full w-full object-cover"
-                        onError={(event) => {
-                          event.currentTarget.style.display = 'none';
-                        }}
+                        onError={() => setHasLogoLoadError(true)}
                       />
                     ) : (
                       <Bot className="h-5 w-5 text-white" />
@@ -447,7 +432,7 @@ export function Widget() {
                   </div>
                   <div>
                     <div className="flex items-center gap-2">
-                      <h2 className="text-sm font-semibold text-white" style={{ color: hostTheme.text }}>{assistantName}</h2>
+                      <h2 className="text-sm font-semibold text-white">{assistantName}</h2>
                       {config && (
                         <span className="inline-flex items-center gap-1 rounded-full border border-emerald-400/20 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-100">
                           <CheckCircle2 className="h-3 w-3" />
@@ -455,7 +440,7 @@ export function Widget() {
                         </span>
                       )}
                     </div>
-                    <p className="text-xs text-white/45" style={{ color: hostTheme.secondaryText }}>{businessName}</p>
+                    <p className="text-xs text-white/45">{businessName}</p>
                   </div>
                 </div>
 
@@ -466,7 +451,6 @@ export function Widget() {
                     className="rounded-full bg-white/5 p-2 text-white/70 transition-colors hover:bg-white/10 hover:text-white"
                     title="Start new conversation"
                     aria-label="Start new conversation"
-                    style={{ color: hostTheme.text }}
                   >
                     <RotateCw className="h-4 w-4" />
                   </button>
@@ -475,7 +459,6 @@ export function Widget() {
                     onClick={closeWidget}
                     className="rounded-full bg-white/5 p-2 text-white/70 transition-colors hover:bg-white/10 hover:text-white"
                     aria-label="Minimize widget"
-                    style={{ color: hostTheme.text }}
                   >
                     <ChevronDown className="h-4 w-4" />
                   </button>
@@ -485,14 +468,14 @@ export function Widget() {
               <div className="flex-1 overflow-y-auto px-4 py-4">
                 <div className="space-y-4">
                   {isBooting && (
-                    <div className="flex items-center gap-3 rounded-2xl bg-white/5 px-4 py-3 text-sm text-white/60" style={{ backgroundColor: hostTheme.background, color: hostTheme.secondaryText }}>
+                    <div className="flex items-center gap-3 rounded-2xl bg-white/5 px-4 py-3 text-sm text-white/60">
                       <Loader2 className="h-4 w-4 animate-spin" />
                       Loading your assistant...
                     </div>
                   )}
 
                   {error && (
-                    <div className="rounded-2xl border border-red-400/20 bg-red-500/10 px-4 py-3 text-sm text-red-100" style={{ borderRadius: hostTheme.radius }}>
+                    <div className="rounded-2xl border border-red-400/20 bg-red-500/10 px-4 py-3 text-sm text-red-100">
                       {error}
                     </div>
                   )}
@@ -508,9 +491,6 @@ export function Widget() {
                             ? 'rounded-br-sm bg-white text-[#111111]'
                             : 'rounded-bl-sm bg-black/25 text-white/90'
                         }`}
-                        style={message.role === 'visitor'
-                          ? { backgroundColor: widgetAccent, color: hostTheme.accentText, borderRadius: hostTheme.radius }
-                          : { backgroundColor: hostTheme.background, color: hostTheme.text, borderRadius: hostTheme.radius }}
                       >
                         {message.content}
                       </div>
@@ -519,7 +499,7 @@ export function Widget() {
 
                   {isSending && (
                     <div className="flex justify-start">
-                      <div className="flex items-center gap-1.5 rounded-2xl rounded-bl-sm bg-black/25 px-4 py-3" style={{ backgroundColor: hostTheme.background }}>
+                      <div className="flex items-center gap-1.5 rounded-2xl rounded-bl-sm bg-black/25 px-4 py-3">
                         <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-white/40 [animation-delay:-0.3s]" />
                         <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-white/40 [animation-delay:-0.15s]" />
                         <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-white/40" />
@@ -528,7 +508,7 @@ export function Widget() {
                   )}
 
                   {!messages.length && !isBooting && (
-                    <div className="rounded-2xl bg-white/5 px-4 py-3 text-sm text-white/70" style={{ backgroundColor: hostTheme.background, color: hostTheme.secondaryText, borderRadius: hostTheme.radius }}>
+                    <div className="rounded-2xl bg-white/5 px-4 py-3 text-sm text-white/70">
                       {greeting}
                     </div>
                   )}
@@ -537,7 +517,7 @@ export function Widget() {
                 </div>
               </div>
 
-              <div className="border-t border-white/10 bg-black/20 px-4 py-4" style={{ backgroundColor: hostTheme.background, borderColor: hostTheme.secondaryText }}>
+              <div className="border-t border-white/10 bg-black/20 px-4 py-4">
                 {config?.suggested_questions?.length ? (
                   <div className="mb-3 flex flex-wrap gap-2">
                     {config.suggested_questions.map((question) => (
@@ -549,7 +529,6 @@ export function Widget() {
                           inputRef.current?.focus();
                         }}
                         className="rounded-full bg-white/5 px-3 py-2 text-left text-[11px] text-white/65 transition-colors hover:bg-white/10 hover:text-white"
-                        style={{ backgroundColor: hostTheme.surface, color: hostTheme.secondaryText, borderRadius: hostTheme.radius }}
                       >
                         <Sparkles className="mr-1.5 inline-block h-3.5 w-3.5 text-white/50" />
                         {question}
@@ -565,13 +544,12 @@ export function Widget() {
                     onChange={(event) => setInput(event.target.value)}
                     placeholder="Type your message..."
                     className="w-full rounded-full bg-[#121212] py-3 pl-4 pr-12 text-sm text-white placeholder:text-white/35 focus:border-white/25 focus:outline-none"
-                    style={{ backgroundColor: hostTheme.surface, color: hostTheme.text, borderRadius: hostTheme.radius, border: `1px solid ${hostTheme.secondaryText}` }}
                   />
                   <button
                     type="submit"
                     disabled={!input.trim() || isSending}
                     className="absolute right-1.5 top-1.5 inline-flex h-9 w-9 items-center justify-center rounded-full text-white transition-transform disabled:cursor-not-allowed disabled:opacity-50"
-                    style={{ backgroundColor: widgetAccent, color: hostTheme.accentText }}
+                    style={{ backgroundColor: brandColor }}
                     aria-label="Send message"
                   >
                     {isSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}

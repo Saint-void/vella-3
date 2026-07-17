@@ -58,9 +58,6 @@ export default function App() {
       document
         .querySelectorAll('iframe[src*="vella-3.onrender.com/widget/"]')
         .forEach((el) => el.remove());
-      // The production loader wraps the iframe in a Shadow DOM host, so normal
-      // document queries cannot see the iframe itself during SPA cleanup.
-      document.getElementById(`vella-widget-${WIDGET_CHATBOT_ID}`)?.remove();
       // Also clear the loader's own mount guard so navigating back to
       // a normal page re-mounts cleanly instead of thinking it's
       // already running from a previous route.

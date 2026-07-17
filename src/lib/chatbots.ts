@@ -71,6 +71,21 @@ export function deleteChatbot(accessToken: string, chatbotId: string) {
   });
 }
 
+export function uploadChatbotLogo(accessToken: string, chatbotId: string, file: File) {
+  const body = new FormData();
+  body.append('file', file);
+  return apiRequest<Chatbot>(`/api/v1/chatbots/${chatbotId}/logo`, accessToken, {
+    method: 'POST',
+    body,
+  });
+}
+
+export function deleteChatbotLogo(accessToken: string, chatbotId: string) {
+  return apiRequest<Chatbot>(`/api/v1/chatbots/${chatbotId}/logo`, accessToken, {
+    method: 'DELETE',
+  });
+}
+
 export function listChatbotFaqs(accessToken: string, chatbotId: string) {
   return apiRequest<ChatbotFAQ[]>(`/api/v1/chatbots/${chatbotId}/faqs`, accessToken);
 }

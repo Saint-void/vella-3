@@ -27,10 +27,13 @@ import {
   ChatbotPayload,
   createChatbot,
   deleteChatbot,
+  deleteChatbotLogo,
   listChatbots,
+  uploadChatbotLogo,
   updateChatbot,
 } from '../lib/chatbots';
 import { clearAuthSession, getAccessToken, getAuthEmail } from '../lib/authSession';
+import { useLogoAsset } from '../lib/useLogoAsset';
 import {
   KnowledgeDocument,
   createTextKnowledgeDocument,
@@ -194,6 +197,7 @@ export function Dashboard() {
   const [isLoadingKnowledge, setIsLoadingKnowledge] = useState(false);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [isSavingChatbot, setIsSavingChatbot] = useState(false);
+  const [isUploadingLogo, setIsUploadingLogo] = useState(false);
   const [isSavingKnowledge, setIsSavingKnowledge] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -203,6 +207,7 @@ export function Dashboard() {
   const [knowledgeError, setKnowledgeError] = useState<string | null>(null);
 
   const selectedChatbot = chatbots.find((chatbot) => chatbot.id === selectedChatbotId) ?? null;
+  const logoPreviewUrl = useLogoAsset(chatbotForm.logo_url);
   const displayName = [profile?.first_name, profile?.last_name].filter(Boolean).join(' ') || 'New founder';
   const isCreatingChatbot = selectedChatbot === null;
   const canPublishWidget = selectedChatbot?.status === 'active' && Boolean(selectedChatbot.website_domain?.trim());
@@ -459,6 +464,49 @@ export function Dashboard() {
       setChatbotError(err instanceof Error ? err.message : 'Could not delete chatbot.');
     } finally {
       setIsSavingChatbot(false);
+    }
+  };
+
+  const handleLogoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!accessToken || !selectedChatbot || !file) return;
+
+    const allowedTypes = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/gif']);
+    if (!allowedTypes.has(file.type)) {
+      setChatbotError('Upload a PNG, JPEG, WebP, or GIF logo.');
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      setChatbotError('Logo must be smaller than 2 MB.');
+      return;
+    }
+
+    setIsUploadingLogo(true);
+    setChatbotError(null);
+    try {
+      const updated = await uploadChatbotLogo(accessToken, selectedChatbot.id, file);
+      setChatbots((current) => current.map((chatbot) => (chatbot.id === updated.id ? updated : chatbot)));
+      setChatbotForm(chatbotToForm(updated));
+    } catch (err) {
+      setChatbotError(err instanceof Error ? err.message : 'Could not upload logo.');
+    } finally {
+      setIsUploadingLogo(false);
+    }
+  };
+
+  const handleDeleteLogo = async () => {
+    if (!accessToken || !selectedChatbot) return;
+    setIsUploadingLogo(true);
+    setChatbotError(null);
+    try {
+      const updated = await deleteChatbotLogo(accessToken, selectedChatbot.id);
+      setChatbots((current) => current.map((chatbot) => (chatbot.id === updated.id ? updated : chatbot)));
+      setChatbotForm(chatbotToForm(updated));
+    } catch (err) {
+      setChatbotError(err instanceof Error ? err.message : 'Could not remove logo.');
+    } finally {
+      setIsUploadingLogo(false);
     }
   };
 
@@ -1067,6 +1115,49 @@ export function Dashboard() {
                               placeholder="Support Assistant"
                             />
                           </label>
+                          <div className="block md:col-span-2">
+                            <span className="text-xs font-medium text-white/45">Chatbot logo</span>
+                            <div className="mt-2 flex flex-col gap-3 rounded-2xl border border-dashed border-white/15 bg-black/20 p-4 sm:flex-row sm:items-center">
+                              <div
+                                className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full"
+                                style={{ backgroundColor: colorInputValue(chatbotForm.brand_color) }}
+                              >
+                                {logoPreviewUrl ? (
+                                  <img src={logoPreviewUrl} alt="Chatbot logo preview" className="h-full w-full object-cover" />
+                                ) : (
+                                  <Bot className="h-5 w-5 text-white" />
+                                )}
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <p className="text-sm text-white/75">{chatbotForm.logo_url ? 'Custom logo uploaded' : 'Use your business logo in the widget header.'}</p>
+                                <p className="mt-1 text-xs text-white/40">PNG, JPEG, WebP, or GIF · maximum 2 MB</p>
+                              </div>
+                              <div className="flex shrink-0 gap-2">
+                                <label className={`inline-flex cursor-pointer items-center gap-2 rounded-xl bg-white px-3 py-2 text-xs font-semibold text-vella-black transition-colors hover:bg-gray-200 ${(!selectedChatbot || isUploadingLogo) ? 'pointer-events-none opacity-50' : ''}`}>
+                                  {isUploadingLogo ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <UploadCloud className="h-3.5 w-3.5" />}
+                                  {chatbotForm.logo_url ? 'Replace' : 'Upload logo'}
+                                  <input
+                                    type="file"
+                                    accept="image/png,image/jpeg,image/webp,image/gif"
+                                    onChange={handleLogoUpload}
+                                    disabled={!selectedChatbot || isUploadingLogo}
+                                    className="sr-only"
+                                  />
+                                </label>
+                                {chatbotForm.logo_url && (
+                                  <button
+                                    type="button"
+                                    onClick={handleDeleteLogo}
+                                    disabled={isUploadingLogo}
+                                    className="rounded-xl border border-white/15 px-3 py-2 text-xs font-medium text-white/70 transition-colors hover:bg-white/10 disabled:opacity-50"
+                                  >
+                                    Remove
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                            {!selectedChatbot && <p className="mt-2 text-xs text-white/35">Save this chatbot before uploading its logo.</p>}
+                          </div>
                           <label className="block">
                             <span className="text-xs font-medium text-white/45">Business name</span>
                             <input
@@ -1434,7 +1525,11 @@ export function Dashboard() {
                               className="flex h-9 w-9 items-center justify-center rounded-full"
                               style={{ backgroundColor: colorInputValue(chatbotForm.brand_color) }}
                             >
-                              <Bot className="w-4 h-4 text-white" />
+                              {logoPreviewUrl ? (
+                                <img src={logoPreviewUrl} alt={`${chatbotForm.business_name || 'Chatbot'} logo`} className="h-full w-full object-cover" />
+                              ) : (
+                                <Bot className="w-4 h-4 text-white" />
+                              )}
                             </div>
                             <div>
                               <p className="text-sm font-medium text-white">{chatbotForm.name || 'Support Assistant'}</p>
