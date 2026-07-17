@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Bot, CheckCircle2, ChevronDown, Loader2, MessageCircle, Send, Sparkles } from 'lucide-react';
+import { Bot, CheckCircle2, ChevronDown, Loader2, MessageCircle, Send, Sparkles, RotateCw } from 'lucide-react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import {
   createWidgetConversation,
@@ -303,6 +303,21 @@ export function Widget() {
     setError(null);
   };
 
+  const handleStartNewChat = async () => {
+    try {
+      if (!chatbotId) return;
+      
+      const currentVisitorId = ensureVisitorId();
+      await createConversation(currentVisitorId);
+      setInput('');
+      setError(null);
+      inputRef.current?.focus();
+    } catch (err) {
+      console.error('Failed to start new chat:', err);
+      setError(err instanceof Error ? err.message : 'Could not start new conversation');
+    }
+  };
+
   const closeWidget = () => {
     setIsOpen(false);
   };
@@ -341,7 +356,7 @@ export function Widget() {
             exit={{ opacity: 0, scale: 0.9 }}
             transition={{ duration: 0.2 }}
             onClick={isFatalError ? undefined : openWidget}
-            className="absolute bottom-0 right-0 flex items-center justify-center rounded-full border border-white/10 bg-[#0f0f0f] text-white shadow-2xl shadow-black/40"
+            className="absolute bottom-0 right-0 flex items-center justify-center rounded-full bg-[#0f0f0f] text-white shadow-2xl shadow-black/40"
             style={{
               width: CLOSED_SIZE.width,
               height: CLOSED_SIZE.height,
@@ -370,7 +385,7 @@ export function Widget() {
             className="absolute inset-0 flex h-full w-full justify-end"
           >
             <div
-              className="flex h-full w-full flex-col overflow-hidden rounded-[18px] border border-white/10 bg-[#0d0d0d] text-white "
+              className="flex h-full w-full flex-col overflow-hidden rounded-[18px] bg-[#0d0d0d] text-white "
               style={{
                 background: `linear-gradient(180deg, color-mix(in srgb, ${brandColor} 12%, #111111) 0%, #0b0b0b 52%, #090909 100%)`,
               }}
@@ -378,7 +393,7 @@ export function Widget() {
               <div className="flex items-start justify-between gap-3 border-b border-white/10 px-4 py-4">
                 <div className="flex items-center gap-3">
                   <div
-                    className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-full border border-white/10 bg-white/10"
+                    className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-full bg-white/10"
                     style={{ backgroundColor: brandColor }}
                   >
                     {config?.logo_url ? (
@@ -408,20 +423,31 @@ export function Widget() {
                   </div>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={closeWidget}
-                  className="rounded-full border border-white/10 bg-white/5 p-2 text-white/70 transition-colors hover:bg-white/10 hover:text-white"
-                  aria-label="Minimize widget"
-                >
-                  <ChevronDown className="h-4 w-4" />
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleStartNewChat}
+                    className="rounded-full bg-white/5 p-2 text-white/70 transition-colors hover:bg-white/10 hover:text-white"
+                    title="Start new conversation"
+                    aria-label="Start new conversation"
+                  >
+                    <RotateCw className="h-4 w-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={closeWidget}
+                    className="rounded-full bg-white/5 p-2 text-white/70 transition-colors hover:bg-white/10 hover:text-white"
+                    aria-label="Minimize widget"
+                  >
+                    <ChevronDown className="h-4 w-4" />
+                  </button>
+                </div>
               </div>
 
               <div className="flex-1 overflow-y-auto px-4 py-4">
                 <div className="space-y-4">
                   {isBooting && (
-                    <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/60">
+                    <div className="flex items-center gap-3 rounded-2xl bg-white/5 px-4 py-3 text-sm text-white/60">
                       <Loader2 className="h-4 w-4 animate-spin" />
                       Loading your assistant...
                     </div>
@@ -442,7 +468,7 @@ export function Widget() {
                         className={`max-w-[88%] rounded-2xl px-4 py-3 text-sm leading-relaxed ${
                           message.role === 'visitor'
                             ? 'rounded-br-sm bg-white text-[#111111]'
-                            : 'rounded-bl-sm border border-white/10 bg-black/25 text-white/90'
+                            : 'rounded-bl-sm bg-black/25 text-white/90'
                         }`}
                       >
                         {message.content}
@@ -452,7 +478,7 @@ export function Widget() {
 
                   {isSending && (
                     <div className="flex justify-start">
-                      <div className="flex items-center gap-1.5 rounded-2xl rounded-bl-sm border border-white/10 bg-black/25 px-4 py-3">
+                      <div className="flex items-center gap-1.5 rounded-2xl rounded-bl-sm bg-black/25 px-4 py-3">
                         <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-white/40 [animation-delay:-0.3s]" />
                         <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-white/40 [animation-delay:-0.15s]" />
                         <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-white/40" />
@@ -461,7 +487,7 @@ export function Widget() {
                   )}
 
                   {!messages.length && !isBooting && (
-                    <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/70">
+                    <div className="rounded-2xl bg-white/5 px-4 py-3 text-sm text-white/70">
                       {greeting}
                     </div>
                   )}
@@ -481,7 +507,7 @@ export function Widget() {
                           setInput(question);
                           inputRef.current?.focus();
                         }}
-                        className="rounded-full border border-white/10 bg-white/5 px-3 py-2 text-left text-[11px] text-white/65 transition-colors hover:bg-white/10 hover:text-white"
+                        className="rounded-full bg-white/5 px-3 py-2 text-left text-[11px] text-white/65 transition-colors hover:bg-white/10 hover:text-white"
                       >
                         <Sparkles className="mr-1.5 inline-block h-3.5 w-3.5 text-white/50" />
                         {question}
@@ -496,7 +522,7 @@ export function Widget() {
                     value={input}
                     onChange={(event) => setInput(event.target.value)}
                     placeholder="Type your message..."
-                    className="w-full rounded-full border border-white/10 bg-[#121212] py-3 pl-4 pr-12 text-sm text-white placeholder:text-white/35 focus:border-white/25 focus:outline-none"
+                    className="w-full rounded-full bg-[#121212] py-3 pl-4 pr-12 text-sm text-white placeholder:text-white/35 focus:border-white/25 focus:outline-none"
                   />
                   <button
                     type="submit"

@@ -24,17 +24,11 @@ import { Link, useNavigate } from 'react-router-dom';
 import { apiRequest } from '../lib/api';
 import {
   Chatbot,
-  ChatbotFAQ,
-  ChatbotFAQPayload,
   ChatbotPayload,
   createChatbot,
-  createChatbotFaq,
   deleteChatbot,
-  deleteChatbotFaq,
-  listChatbotFaqs,
   listChatbots,
   updateChatbot,
-  updateChatbotFaq,
 } from '../lib/chatbots';
 import { clearAuthSession, getAccessToken, getAuthEmail } from '../lib/authSession';
 import {
@@ -74,7 +68,7 @@ type KnowledgeTextForm = {
 };
 
 type DashboardView = 'overview' | 'chatbots' | 'analytics' | 'leads';
-type EditorTab = 'settings' | 'faqs' | 'knowledge' | 'publish';
+type EditorTab = 'settings' |'knowledge' | 'publish';
 
 const sidebarLinks: Array<{ id: DashboardView; icon: typeof LayoutDashboard; label: string }> = [
   { id: 'overview', icon: LayoutDashboard, label: 'Overview' },
@@ -85,13 +79,12 @@ const sidebarLinks: Array<{ id: DashboardView; icon: typeof LayoutDashboard; lab
 
 const editorTabs: Array<{ id: EditorTab; icon: typeof Settings; label: string }> = [
   { id: 'settings', icon: Settings, label: 'Settings' },
-  { id: 'faqs', icon: MessageSquare, label: 'FAQs' },
   { id: 'knowledge', icon: FileText, label: 'Knowledge' },
   { id: 'publish', icon: Globe, label: 'Publish' },
 ];
 
 const inputClass =
-  'mt-2 w-full bg-[#101010] border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder-white/30 focus:outline-none focus:border-white/30 disabled:opacity-50';
+  'mt-2 w-full bg-[#101010] rounded-xl px-4 py-3 text-sm text-white placeholder-white/30 focus:outline-none focus:border-white/30 disabled:opacity-50';
 const textareaClass = `${inputClass} min-h-[104px] resize-y`;
 
 const emptyChatbotForm: ChatbotForm = {
@@ -106,12 +99,6 @@ const emptyChatbotForm: ChatbotForm = {
   logo_url: '',
   handoff_email: '',
   status: 'draft',
-};
-
-const emptyFaqForm: ChatbotFAQPayload = {
-  question: '',
-  answer: '',
-  is_enabled: true,
 };
 
 const emptyKnowledgeTextForm: KnowledgeTextForm = {
@@ -200,26 +187,19 @@ export function Dashboard() {
   const [chatbots, setChatbots] = useState<Chatbot[]>([]);
   const [selectedChatbotId, setSelectedChatbotId] = useState<string | null>(null);
   const [chatbotForm, setChatbotForm] = useState<ChatbotForm>(emptyChatbotForm);
-  const [faqs, setFaqs] = useState<ChatbotFAQ[]>([]);
-  const [faqForm, setFaqForm] = useState<ChatbotFAQPayload>(emptyFaqForm);
-  const [editingFaqId, setEditingFaqId] = useState<string | null>(null);
-  const [editingFaqForm, setEditingFaqForm] = useState<ChatbotFAQPayload>(emptyFaqForm);
   const [knowledgeDocuments, setKnowledgeDocuments] = useState<KnowledgeDocument[]>([]);
   const [knowledgeTextForm, setKnowledgeTextForm] = useState<KnowledgeTextForm>(emptyKnowledgeTextForm);
   const [knowledgeFile, setKnowledgeFile] = useState<File | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [isLoadingFaqs, setIsLoadingFaqs] = useState(false);
   const [isLoadingKnowledge, setIsLoadingKnowledge] = useState(false);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [isSavingChatbot, setIsSavingChatbot] = useState(false);
-  const [isSavingFaq, setIsSavingFaq] = useState(false);
   const [isSavingKnowledge, setIsSavingKnowledge] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [copiedSnippet, setCopiedSnippet] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [chatbotError, setChatbotError] = useState<string | null>(null);
-  const [faqError, setFaqError] = useState<string | null>(null);
   const [knowledgeError, setKnowledgeError] = useState<string | null>(null);
 
   const selectedChatbot = chatbots.find((chatbot) => chatbot.id === selectedChatbotId) ?? null;
@@ -322,35 +302,6 @@ export function Dashboard() {
   useEffect(() => {
     let isMounted = true;
 
-    async function loadFaqs() {
-      if (!accessToken || !selectedChatbotId || !isChatbotEditorOpen) {
-        setFaqs([]);
-        return;
-      }
-
-      setIsLoadingFaqs(true);
-      setFaqError(null);
-
-      try {
-        const rows = await listChatbotFaqs(accessToken, selectedChatbotId);
-        if (isMounted) setFaqs(rows);
-      } catch (err) {
-        if (isMounted) setFaqError(err instanceof Error ? err.message : 'Could not load Q&A pairs.');
-      } finally {
-        if (isMounted) setIsLoadingFaqs(false);
-      }
-    }
-
-    loadFaqs();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [accessToken, selectedChatbotId, isChatbotEditorOpen]);
-
-  useEffect(() => {
-    let isMounted = true;
-
     async function loadKnowledge() {
       if (!accessToken || !selectedChatbotId || !isChatbotEditorOpen) {
         setKnowledgeDocuments([]);
@@ -381,7 +332,6 @@ export function Dashboard() {
   const handleChangeView = (view: DashboardView) => {
     setActiveView(view);
     setChatbotError(null);
-    setFaqError(null);
   };
 
   const handleSelectChatbot = (chatbot: Chatbot) => {
@@ -391,9 +341,7 @@ export function Dashboard() {
     setIsChatbotEditorOpen(true);
     setEditorTab('settings');
     setChatbotError(null);
-    setFaqError(null);
     setKnowledgeError(null);
-    setEditingFaqId(null);
     setKnowledgeTextForm(emptyKnowledgeTextForm);
     setKnowledgeFile(null);
   };
@@ -402,14 +350,11 @@ export function Dashboard() {
     setActiveView('chatbots');
     setSelectedChatbotId(null);
     setChatbotForm(emptyChatbotForm);
-    setFaqs([]);
     setKnowledgeDocuments([]);
     setIsChatbotEditorOpen(true);
     setEditorTab('settings');
     setChatbotError(null);
-    setFaqError(null);
     setKnowledgeError(null);
-    setEditingFaqId(null);
     setKnowledgeTextForm(emptyKnowledgeTextForm);
     setKnowledgeFile(null);
   };
@@ -417,9 +362,7 @@ export function Dashboard() {
   const handleCloseChatbotEditor = () => {
     setIsChatbotEditorOpen(false);
     setChatbotError(null);
-    setFaqError(null);
     setKnowledgeError(null);
-    setEditingFaqId(null);
     setKnowledgeTextForm(emptyKnowledgeTextForm);
     setKnowledgeFile(null);
     if (selectedChatbot) {
@@ -494,7 +437,7 @@ export function Dashboard() {
 
   const handleDeleteChatbot = async () => {
     if (!accessToken || !selectedChatbot) return;
-    if (!window.confirm(`Delete ${selectedChatbot.name}? This removes its manual Q&A too.`)) return;
+    if (!window.confirm(`Delete ${selectedChatbot.name}`)) return;
 
     setIsSavingChatbot(true);
     setChatbotError(null);
@@ -509,7 +452,6 @@ export function Dashboard() {
       } else {
         setSelectedChatbotId(null);
         setChatbotForm(emptyChatbotForm);
-        setFaqs([]);
         setKnowledgeDocuments([]);
         setIsChatbotEditorOpen(false);
       }
@@ -517,97 +459,6 @@ export function Dashboard() {
       setChatbotError(err instanceof Error ? err.message : 'Could not delete chatbot.');
     } finally {
       setIsSavingChatbot(false);
-    }
-  };
-
-  const handleCreateFaq = async (event: React.FormEvent) => {
-    event.preventDefault();
-    if (!accessToken || !selectedChatbot) return;
-
-    const payload = {
-      question: faqForm.question.trim(),
-      answer: faqForm.answer.trim(),
-      is_enabled: faqForm.is_enabled,
-    };
-
-    if (!payload.question || !payload.answer) {
-      setFaqError('Question and answer are required.');
-      return;
-    }
-
-    setIsSavingFaq(true);
-    setFaqError(null);
-
-    try {
-      const created = await createChatbotFaq(accessToken, selectedChatbot.id, payload);
-      setFaqs((current) => [created, ...current]);
-      setFaqForm(emptyFaqForm);
-    } catch (err) {
-      setFaqError(err instanceof Error ? err.message : 'Could not add Q&A.');
-    } finally {
-      setIsSavingFaq(false);
-    }
-  };
-
-  const handleStartEditFaq = (faq: ChatbotFAQ) => {
-    setEditingFaqId(faq.id);
-    setEditingFaqForm({
-      question: faq.question,
-      answer: faq.answer,
-      is_enabled: faq.is_enabled,
-    });
-  };
-
-  const handleSaveFaqEdit = async (faqId: string) => {
-    if (!accessToken || !selectedChatbot) return;
-
-    const payload = {
-      question: editingFaqForm.question.trim(),
-      answer: editingFaqForm.answer.trim(),
-      is_enabled: editingFaqForm.is_enabled,
-    };
-
-    if (!payload.question || !payload.answer) {
-      setFaqError('Question and answer are required.');
-      return;
-    }
-
-    setIsSavingFaq(true);
-    setFaqError(null);
-
-    try {
-      const updated = await updateChatbotFaq(accessToken, selectedChatbot.id, faqId, payload);
-      setFaqs((current) => current.map((faq) => (faq.id === updated.id ? updated : faq)));
-      setEditingFaqId(null);
-      setEditingFaqForm(emptyFaqForm);
-    } catch (err) {
-      setFaqError(err instanceof Error ? err.message : 'Could not update Q&A.');
-    } finally {
-      setIsSavingFaq(false);
-    }
-  };
-
-  const handleToggleFaq = async (faq: ChatbotFAQ) => {
-    if (!accessToken || !selectedChatbot) return;
-
-    try {
-      const updated = await updateChatbotFaq(accessToken, selectedChatbot.id, faq.id, {
-        is_enabled: !faq.is_enabled,
-      });
-      setFaqs((current) => current.map((row) => (row.id === updated.id ? updated : row)));
-    } catch (err) {
-      setFaqError(err instanceof Error ? err.message : 'Could not update Q&A.');
-    }
-  };
-
-  const handleDeleteFaq = async (faq: ChatbotFAQ) => {
-    if (!accessToken || !selectedChatbot) return;
-
-    try {
-      await deleteChatbotFaq(accessToken, selectedChatbot.id, faq.id);
-      setFaqs((current) => current.filter((row) => row.id !== faq.id));
-    } catch (err) {
-      setFaqError(err instanceof Error ? err.message : 'Could not delete Q&A.');
     }
   };
 
@@ -762,12 +613,6 @@ export function Dashboard() {
     navigate('/login', { replace: true });
   };
 
-  const overviewStats = [
-    { label: 'Chatbots', value: String(chatbots.length), detail: chatbots.length === 1 ? 'One AI employee created' : 'AI employees created' },
-    { label: 'Conversations', value: '0', detail: 'Widget chat history opens later' },
-    { label: 'Manual Q&A', value: '0', detail: 'Open a chatbot to manage answers' },
-  ];
-
   const activeChatbots = chatbots.filter((chatbot) => chatbot.status === 'active').length;
   const pageTitle = activeView === 'overview' ? 'Overview' : sidebarLinks.find((link) => link.id === activeView)?.label ?? 'Dashboard';
 
@@ -779,10 +624,10 @@ export function Dashboard() {
         initial={{ y: -20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
-        className="fixed top-4 md:top-6 left-0 right-0 z-50 w-[calc(100%-2rem)] max-w-[1400px] mx-auto flex items-center justify-between px-4 md:px-6 py-2.5 md:py-3.5 backdrop-blur-md bg-vella-darker/60 border border-white/10 rounded-full shadow-2xl"
+        className="fixed top-4 md:top-6 left-0 right-0 z-50 w-[calc(100%-2rem)] max-w-[2000px] mx-auto flex items-center justify-between px-4 md:px-6 py-2.5 md:py-3.5 backdrop-blur-md bg-vella-darker/60 rounded-full shadow-2xl"
       >
-        <Link to="/" className="flex items-center gap-2 text-2xl font-bold text-vella-white">
-          <img src="/logo.png" alt="Vella Logo" className="h-10 w-auto object-contain brightness-0 invert" onError={(event) => { event.currentTarget.style.display = 'none'; }} />
+        <Link to="/" className="flex items-center gap-2 text-4xl font-bold text-vella-white">
+          <img src="/logo.png" alt="Vella Logo" className="h-15 w-auto object-contain brightness-0 invert" onError={(event) => { event.currentTarget.style.display = 'none'; }} />
         </Link>
 
         <div className="flex items-center gap-2 sm:gap-4">
@@ -798,19 +643,19 @@ export function Dashboard() {
           </button>
           <Link
             to="/dashboard/profile"
-            className="w-9 h-9 rounded-full bg-white/10 flex items-center justify-center text-sm font-medium border border-white/10 hover:bg-white/20 transition-colors"
+            className="h-15 w-15  rounded-full bg-white/10 flex items-center justify-center text-sm font-medium  hover:bg-white/20 transition-colors"
           >
             {initials(profile, email)}
           </Link>
         </div>
       </motion.nav>
 
-      <div className="flex-1 flex max-w-[1400px] w-full mx-auto relative z-10 pt-[100px] px-4 md:px-6 pb-6 gap-6">
+      <div className="flex-1 flex max-w-[2000px] w-full mx-auto relative z-10 pt-[130px] px-4 md:px-6 pb-6 gap-6">
         <motion.aside
           initial={{ x: -20, opacity: 0 }}
           animate={{ x: 0, opacity: 1 }}
           transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
-          className="w-64 shrink-0 hidden lg:flex flex-col bg-[#1c1c1c]/20 backdrop-blur-xl border border-white/10 rounded-3xl p-6 shadow-2xl"
+          className="w-64 shrink-0 hidden lg:flex flex-col bg-[#1c1c1c]/20 backdrop-blur-xl rounded-3xl p-6 shadow-2xl"
         >
           <div className="flex flex-col gap-2">
             {sidebarLinks.map((link) => {
@@ -877,19 +722,21 @@ export function Dashboard() {
           )}
 
           {activeView === 'overview' && (
-            <section className="grid grid-cols-1 xl:grid-cols-[1fr_360px] gap-6">
+            <section className="space-y-6">
+              {/* Welcome Header */}
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5 }}
-                className="border border-white/10 bg-[#1c1c1c]/20 backdrop-blur-xl rounded-3xl p-6 md:p-8 shadow-2xl"
+                className="xbg-[#1c1c1c]/20 backdrop-blur-xl rounded-3xl p-6 md:p-8 shadow-2xl"
               >
-                <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-5">
+                <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-5">
                   <div>
-                    <p className="text-sm text-white/40">{pageTitle}</p>
-                    <h1 className="text-3xl md:text-4xl font-semibold text-white mt-2">Welcome, {displayName}</h1>
+                    <h1 className="text-3xl md:text-4xl font-semibold text-white">Welcome, {displayName}</h1>
                     <p className="text-white/50 mt-3 max-w-2xl">
-                      See what exists, what is ready, and where to continue setting up Vella for your business.
+                      {chatbots.length === 0
+                        ? 'Get started by creating your first AI employee to handle customer support.'
+                        : `${chatbots.length} chatbot${chatbots.length !== 1 ? 's' : ''} — ${activeChatbots} active and handling conversations.`}
                     </p>
                   </div>
                   <button
@@ -902,59 +749,161 @@ export function Dashboard() {
                     New Chatbot
                   </button>
                 </div>
+              </motion.div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-8">
-                  {overviewStats.map((stat) => (
-                    <div key={stat.label} className="rounded-2xl border border-white/10 bg-black/20 p-5">
-                      <p className="text-sm text-white/45">{stat.label}</p>
-                      <p className="text-3xl font-semibold text-white mt-2 capitalize">{stat.value}</p>
-                      <p className="text-xs text-white/35 mt-3">{stat.detail}</p>
+              {/* Stats Row */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <motion.div
+                  initial={{ opacity: 0, y: 16 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.4, delay: 0.1 }}
+                  className="bg-[#1c1c1c]/20 backdrop-blur-xl rounded-2xl p-5 shadow-xl"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/5">
+                      <Bot className="w-5 h-5 text-white/60" />
                     </div>
-                  ))}
-                </div>
-
-                <div className="mt-8 rounded-2xl border border-white/10 bg-black/20 p-5">
-                  <div className="flex items-center justify-between gap-3">
                     <div>
-                      <p className="text-sm text-white/40">Created chatbots</p>
-                      <h2 className="text-xl font-semibold text-white mt-1">Current workspace</h2>
+                      <p className="text-2xl font-semibold text-white">{chatbots.length}</p>
+                      <p className="text-xs text-white/45">Chatbot{chatbots.length !== 1 ? 's' : ''}</p>
                     </div>
-                    <span className="text-xs px-3 py-1.5 rounded-full border border-white/10 bg-white/5 text-white/50">
-                      {activeChatbots} active
-                    </span>
                   </div>
+                  {chatbots.length > 0 && (
+                    <p className="mt-3 text-xs text-white/35">
+                      {activeChatbots} active · {chatbots.length - activeChatbots} draft{chatbots.length - activeChatbots !== 1 ? 's' : ''}
+                    </p>
+                  )}
+                </motion.div>
 
-                  <div className="mt-5 grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {chatbots.slice(0, 4).map((chatbot) => (
+                <motion.div
+                  initial={{ opacity: 0, y: 16 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.4, delay: 0.15 }}
+                  className="bg-[#1c1c1c]/20 backdrop-blur-xl rounded-2xl p-5 shadow-xl"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/5">
+                      <MessageSquare className="w-5 h-5 text-white/60" />
+                    </div>
+                    <div>
+                      <p className="text-2xl font-semibold text-white">0</p>
+                      <p className="text-xs text-white/45">Conversations</p>
+                    </div>
+                  </div>
+                  <p className="mt-3 text-xs text-white/35">Widget chat history opens later</p>
+                </motion.div>
+
+                <motion.div
+                  initial={{ opacity: 0, y: 16 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.4, delay: 0.2 }}
+                  className="bg-[#1c1c1c]/20 backdrop-blur-xl rounded-2xl p-5 shadow-xl"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/5">
+                      <FileText className="w-5 h-5 text-white/60" />
+                    </div>
+                    <div>
+                      <p className="text-2xl font-semibold text-white">0</p>
+                      <p className="text-xs text-white/45">Knowledge Sources</p>
+                    </div>
+                  </div>
+                  <p className="mt-3 text-xs text-white/35">Upload documents to train chatbots</p>
+                </motion.div>
+              </div>
+
+              {/* Getting Started Checklist */}
+              {chatbots.length === 0 && !isLoading && (
+                <motion.div
+                  initial={{ opacity: 0, y: 16 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.4, delay: 0.25 }}
+                  className="bg-[#1c1c1c]/20 backdrop-blur-xl rounded-2xl p-6 shadow-xl"
+                >
+                  <div className="flex items-center justify-between gap-3 mb-5">
+                    <h2 className="text-sm font-medium text-white/70">Getting Started</h2>
+                    <span className="text-xs text-white/40">0 of 3 complete</span>
+                  </div>
+                  <div className="w-full bg-white/5 rounded-full h-1.5 mb-6">
+                    <div className="bg-white/20 h-1.5 rounded-full" style={{ width: '0%' }} />
+                  </div>
+                  <div className="space-y-4">
+                    <div className="flex items-start gap-3">
+                      <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-white/15 bg-white/5 mt-0.5">
+                        <span className="text-xs text-white/40">1</span>
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-white/70">Create your first chatbot</p>
+                        <p className="text-xs text-white/40 mt-1">Set up an AI employee with your business details and tone.</p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-3">
+                      <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-white/15 bg-white/5 mt-0.5">
+                        <span className="text-xs text-white/40">2</span>
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-white/70">Add knowledge sources</p>
+                        <p className="text-xs text-white/40 mt-1">Upload documents or add Q&A pairs so your chatbot knows your business.</p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-3">
+                      <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-white/15 bg-white/5 mt-0.5">
+                        <span className="text-xs text-white/40">3</span>
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-white/70">Activate & publish</p>
+                        <p className="text-xs text-white/40 mt-1">Set status to active, add your domain, and install the widget.</p>
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+
+              {/* Chatbots List */}
+              {chatbots.length > 0 && (
+                <motion.div
+                  initial={{ opacity: 0, y: 16 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.4, delay: 0.25 }}
+                  className="bg-[#1c1c1c]/20 backdrop-blur-xl rounded-2xl p-6 shadow-xl"
+                >
+                  <div className="flex items-center justify-between gap-3 mb-5">
+                    <h2 className="text-sm font-medium text-white/70">Your Chatbots</h2>
+                    <button
+                      type="button"
+                      onClick={handleStartNewChatbot}
+                      className="inline-flex items-center gap-1.5 text-xs text-white/50 hover:text-white transition-colors"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      New
+                    </button>
+                  </div>
+                  <div className="space-y-2">
+                    {chatbots.map((chatbot) => (
                       <button
                         key={chatbot.id}
                         type="button"
                         onClick={() => handleSelectChatbot(chatbot)}
-                        className="text-left rounded-2xl border border-white/10 bg-[#101010] p-4 hover:bg-white/5 transition-colors"
+                        className="w-full text-left rounded-xl bg-[#101010] p-4 hover:bg-white/5 transition-colors flex items-center gap-4"
                       >
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <p className="font-medium text-white">{chatbot.name}</p>
-                            <p className="text-xs text-white/40 mt-1">{chatbot.business_name}</p>
-                          </div>
-                          <span className={`text-[11px] px-2 py-1 rounded-full border capitalize ${statusClass(chatbot.status)}`}>
-                            {chatbot.status}
-                          </span>
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/5">
+                          <Bot className="w-5 h-5 text-white/55" />
                         </div>
-                        <p className="text-xs text-white/30 mt-3">Updated {shortDate(chatbot.updated_at)}</p>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-3">
+                            <p className="font-medium text-white truncate">{chatbot.name}</p>
+                            <span className={`text-[11px] px-2 py-0.5 rounded-full border capitalize shrink-0 ${statusClass(chatbot.status)}`}>
+                              {chatbot.status}
+                            </span>
+                          </div>
+                          <p className="text-xs text-white/40 mt-1 truncate">{chatbot.business_name}</p>
+                        </div>
+                        <p className="text-xs text-white/30 shrink-0 hidden sm:block">Updated {shortDate(chatbot.updated_at)}</p>
                       </button>
                     ))}
-
-                    {chatbots.length === 0 && !isLoading && (
-                      <div className="md:col-span-2 min-h-[220px] rounded-2xl border border-dashed border-white/10 bg-[#101010] flex flex-col items-center justify-center text-center px-6">
-                        <Bot className="w-9 h-9 text-white/25" />
-                        <h3 className="text-lg font-medium text-white/75 mt-4">No chatbot yet</h3>
-                        <p className="text-sm text-white/40 mt-2 max-w-md">Create the first support agent from the button above.</p>
-                      </div>
-                    )}
                   </div>
-                </div>
-              </motion.div>
+                </motion.div>
+              )}
             </section>
           )}
 
@@ -964,7 +913,7 @@ export function Dashboard() {
                 initial={{ opacity: 0, y: 18 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5 }}
-                className="border border-white/10 bg-[#1c1c1c]/20 backdrop-blur-xl rounded-3xl p-6 md:p-8 shadow-2xl"
+                className="bg-[#1c1c1c]/20 backdrop-blur-xl rounded-3xl p-6 md:p-8 shadow-2xl"
               >
                 <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-5">
                   <div>
@@ -1037,7 +986,7 @@ export function Dashboard() {
                     initial={{ opacity: 0, y: 18 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.6 }}
-                    className="border border-white/10 bg-[#1c1c1c]/20 backdrop-blur-xl rounded-3xl p-6 shadow-2xl"
+                    className="bg-[#1c1c1c]/20 backdrop-blur-xl rounded-3xl p-6 shadow-2xl"
                   >
                     <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
                       <div>
@@ -1050,7 +999,7 @@ export function Dashboard() {
                         <button
                           type="button"
                           onClick={handleCloseChatbotEditor}
-                          className="inline-flex items-center justify-center px-4 py-2.5 text-sm font-medium text-white/70 border border-white/10 rounded-xl hover:bg-white/5"
+                          className="inline-flex items-center justify-center px-4 py-2.5 text-sm font-medium text-white/70 rounded-xl hover:bg-white/5"
                         >
                           Close
                         </button>
@@ -1105,7 +1054,7 @@ export function Dashboard() {
                         initial={{ opacity: 0, y: 18 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ duration: 0.5 }}
-                        className="border border-white/10 bg-[#1c1c1c]/20 backdrop-blur-xl rounded-3xl p-6 shadow-2xl"
+                        className="bg-[#1c1c1c]/20 backdrop-blur-xl rounded-3xl p-6 shadow-2xl"
                       >
                         <form className="grid grid-cols-1 md:grid-cols-2 gap-4" onSubmit={handleSaveChatbot}>
                           <label className="block">
@@ -1185,7 +1134,7 @@ export function Dashboard() {
                                 value={colorInputValue(chatbotForm.brand_color)}
                                 onChange={(event) => setChatbotForm((form) => ({ ...form, brand_color: event.target.value }))}
                                 disabled={isSavingChatbot}
-                                className="h-[46px] w-14 rounded-xl bg-[#101010] border border-white/10 p-1 disabled:opacity-50"
+                                className="h-[46px] w-14 rounded-xl bg-[#101010] p-1 disabled:opacity-50"
                               />
                               <input
                                 value={chatbotForm.brand_color}
@@ -1227,7 +1176,7 @@ export function Dashboard() {
                             />
                           </label>
                           <div className="md:col-span-2 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                            <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white/45">
+                            <div className="rounded-2xl bg-black/20 px-4 py-3 text-sm text-white/45">
                               {selectedChatbot ? `Created ${shortDate(selectedChatbot.created_at)}` : 'This will create a draft chatbot.'}
                             </div>
                             <button
@@ -1243,157 +1192,12 @@ export function Dashboard() {
                       </motion.div>
                     )}
 
-                    {editorTab === 'faqs' && !isCreatingChatbot && selectedChatbot && (
-                      <motion.div
-                        initial={{ opacity: 0, y: 18 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.5 }}
-                        className="border border-white/10 bg-[#1c1c1c]/20 backdrop-blur-xl rounded-3xl p-6 shadow-2xl"
-                      >
-                        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-                          <div>
-                            <p className="text-sm text-white/40">Manual knowledge</p>
-                            <h2 className="text-2xl font-semibold text-white mt-1">Questions and answers</h2>
-                            <p className="text-sm text-white/45 mt-2 max-w-2xl">
-                              Add answers this chatbot should know before document training opens up.
-                            </p>
-                          </div>
-                          {isLoadingFaqs && <Loader2 className="w-5 h-5 text-white/50 animate-spin" />}
-                        </div>
-
-                        {faqError && (
-                          <div className="mt-5 rounded-2xl border border-red-400/20 bg-red-500/10 p-4 text-sm text-red-100 flex gap-3">
-                            <AlertCircle className="w-5 h-5 shrink-0" />
-                            <p>{faqError}</p>
-                          </div>
-                        )}
-
-                        <form className="mt-6 grid grid-cols-1 lg:grid-cols-[1fr_1fr_auto] gap-3 items-end" onSubmit={handleCreateFaq}>
-                          <label className="block">
-                            <span className="text-xs font-medium text-white/45">Question</span>
-                            <textarea
-                              value={faqForm.question}
-                              onChange={(event) => setFaqForm((form) => ({ ...form, question: event.target.value }))}
-                              disabled={isSavingFaq}
-                              className={`${textareaClass} min-h-[88px]`}
-                              placeholder="What are your delivery options?"
-                            />
-                          </label>
-                          <label className="block">
-                            <span className="text-xs font-medium text-white/45">Answer</span>
-                            <textarea
-                              value={faqForm.answer}
-                              onChange={(event) => setFaqForm((form) => ({ ...form, answer: event.target.value }))}
-                              disabled={isSavingFaq}
-                              className={`${textareaClass} min-h-[88px]`}
-                              placeholder="We deliver nationwide within 2-5 business days."
-                            />
-                          </label>
-                          <button
-                            type="submit"
-                            disabled={isSavingFaq}
-                            className="inline-flex items-center justify-center gap-2 px-5 py-3 text-sm font-semibold text-vella-black bg-vella-white rounded-xl hover:bg-gray-200 transition-colors disabled:opacity-60"
-                          >
-                            {isSavingFaq ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-                            Add
-                          </button>
-                        </form>
-
-                        <div className="mt-6 space-y-3">
-                          {faqs.map((faq) => (
-                            <div key={faq.id} className="rounded-2xl border border-white/10 bg-black/20 p-4">
-                              {editingFaqId === faq.id ? (
-                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-                                  <textarea
-                                    value={editingFaqForm.question}
-                                    onChange={(event) => setEditingFaqForm((form) => ({ ...form, question: event.target.value }))}
-                                    className={`${textareaClass} min-h-[84px]`}
-                                  />
-                                  <textarea
-                                    value={editingFaqForm.answer}
-                                    onChange={(event) => setEditingFaqForm((form) => ({ ...form, answer: event.target.value }))}
-                                    className={`${textareaClass} min-h-[84px]`}
-                                  />
-                                  <div className="lg:col-span-2 flex flex-wrap gap-2 justify-end">
-                                    <button
-                                      type="button"
-                                      onClick={() => setEditingFaqId(null)}
-                                      className="px-4 py-2 text-sm font-medium text-white/70 border border-white/10 rounded-xl hover:bg-white/5"
-                                    >
-                                      Cancel
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => handleSaveFaqEdit(faq.id)}
-                                      disabled={isSavingFaq}
-                                      className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-vella-black bg-vella-white rounded-xl hover:bg-gray-200 disabled:opacity-60"
-                                    >
-                                      <Save className="w-4 h-4" />
-                                      Save
-                                    </button>
-                                  </div>
-                                </div>
-                              ) : (
-                                <div className="flex flex-col gap-4">
-                                  <div className="flex items-start justify-between gap-4">
-                                    <div>
-                                      <p className="text-sm font-medium text-white">{faq.question}</p>
-                                      <p className="text-sm text-white/50 mt-2">{faq.answer}</p>
-                                    </div>
-                                    <button
-                                      type="button"
-                                      onClick={() => handleToggleFaq(faq)}
-                                      className={`shrink-0 inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-full border ${
-                                        faq.is_enabled
-                                          ? 'border-emerald-400/20 bg-emerald-500/10 text-emerald-200'
-                                          : 'border-white/10 bg-white/5 text-white/40'
-                                      }`}
-                                    >
-                                      <CheckCircle2 className="w-3.5 h-3.5" />
-                                      {faq.is_enabled ? 'Enabled' : 'Off'}
-                                    </button>
-                                  </div>
-                                  <div className="flex items-center justify-between gap-3 text-xs text-white/35">
-                                    <span>Updated {shortDate(faq.updated_at)}</span>
-                                    <div className="flex gap-2">
-                                      <button
-                                        type="button"
-                                        onClick={() => handleStartEditFaq(faq)}
-                                        className="px-3 py-1.5 rounded-lg border border-white/10 text-white/60 hover:bg-white/5 hover:text-white"
-                                      >
-                                        Edit
-                                      </button>
-                                      <button
-                                        type="button"
-                                        onClick={() => handleDeleteFaq(faq)}
-                                        className="px-3 py-1.5 rounded-lg border border-red-400/20 text-red-100/80 hover:bg-red-500/10"
-                                      >
-                                        Delete
-                                      </button>
-                                    </div>
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          ))}
-
-                          {faqs.length === 0 && !isLoadingFaqs && (
-                            <div className="rounded-2xl border border-dashed border-white/10 bg-black/20 p-6 text-center">
-                              <MessageSquare className="w-8 h-8 text-white/25 mx-auto" />
-                              <p className="text-sm text-white/55 mt-3">No Q&A pairs yet</p>
-                              <p className="text-xs text-white/35 mt-1">Seed common answers before training from documents.</p>
-                            </div>
-                          )}
-                        </div>
-                      </motion.div>
-                    )}
-
                     {editorTab === 'knowledge' && !isCreatingChatbot && selectedChatbot && (
                       <motion.div
                         initial={{ opacity: 0, y: 18 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ duration: 0.5 }}
-                        className="border border-white/10 bg-[#1c1c1c]/20 backdrop-blur-xl rounded-3xl p-6 shadow-2xl"
+                        className="bg-[#1c1c1c]/20 backdrop-blur-xl rounded-3xl p-6 shadow-2xl"
                       >
                         <div className="flex items-start justify-between gap-3">
                           <div>
@@ -1404,7 +1208,7 @@ export function Dashboard() {
                             type="button"
                             onClick={refreshKnowledgeDocuments}
                             disabled={isLoadingKnowledge}
-                            className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-white/60 hover:bg-white/10 hover:text-white disabled:opacity-50"
+                            className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-white/5 text-white/60 hover:bg-white/10 hover:text-white disabled:opacity-50"
                             aria-label="Refresh documents"
                             title="Refresh documents"
                           >
@@ -1454,7 +1258,7 @@ export function Dashboard() {
                               </div>
                             </label>
                           ) : knowledgeFile ? (
-                            <div className="rounded-xl border border-white/10 bg-[#101010] p-4">
+                            <div className="rounded-xl bg-[#101010] p-4">
                               <div className="flex items-center gap-3">
                                 <FileText className="w-8 h-8 text-white/55 shrink-0" />
                                 <div className="min-w-0 flex-1">
@@ -1497,7 +1301,7 @@ export function Dashboard() {
                           </button>
                         </form>
 
-                        <form className="mt-4 rounded-2xl border border-white/10 bg-black/20 p-4" onSubmit={handleCreateTextKnowledge}>
+                        <form className="mt-4 rounded-2xl bg-black/20 p-4" onSubmit={handleCreateTextKnowledge}>
                           <label className="block">
                             <span className="text-xs font-medium text-white/45">Text source name</span>
                             <input
@@ -1521,7 +1325,7 @@ export function Dashboard() {
                           <button
                             type="submit"
                             disabled={isSavingKnowledge}
-                            className="mt-4 w-full inline-flex items-center justify-center gap-2 px-5 py-3 text-sm font-semibold text-white border border-white/10 bg-white/5 rounded-xl hover:bg-white/10 transition-colors disabled:opacity-60"
+                            className="mt-4 w-full inline-flex items-center justify-center gap-2 px-5 py-3 text-sm font-semibold text-white bg-white/5 rounded-xl hover:bg-white/10 transition-colors disabled:opacity-60"
                           >
                             {isSavingKnowledge ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
                             Add Text Source
@@ -1536,10 +1340,10 @@ export function Dashboard() {
 
                           <div className="mt-3 space-y-3">
                             {knowledgeDocuments.map((document) => (
-                              <div key={document.id} className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                              <div key={document.id} className="rounded-2xl bg-black/20 p-4">
                                 <div className="flex items-start justify-between gap-3">
                                   <div className="flex min-w-0 gap-3">
-                                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/5">
+                                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/5">
                                       {document.mime_type?.includes('pdf') ? (
                                         <FileText className="w-4 h-4 text-red-400" />
                                       ) : document.mime_type?.includes('wordprocessingml') || document.mime_type?.includes('docx') ? (
@@ -1571,7 +1375,7 @@ export function Dashboard() {
                                     type="button"
                                     onClick={() => handleReprocessKnowledge(document)}
                                     disabled={isSavingKnowledge || document.status === 'processing'}
-                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-white/10 text-xs text-white/60 hover:bg-white/5 hover:text-white disabled:opacity-50"
+                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs text-white/60 hover:bg-white/5 hover:text-white disabled:opacity-50"
                                   >
                                     <RefreshCw className="w-3.5 h-3.5" />
                                     Reprocess
@@ -1606,7 +1410,7 @@ export function Dashboard() {
                         initial={{ opacity: 0, y: 18 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ duration: 0.5 }}
-                        className="border border-white/10 bg-[#1c1c1c]/20 backdrop-blur-xl rounded-3xl p-6 shadow-2xl"
+                        className="bg-[#1c1c1c]/20 backdrop-blur-xl rounded-3xl p-6 shadow-2xl"
                       >
                         <div className="flex items-start justify-between gap-4">
                           <div>
@@ -1617,17 +1421,17 @@ export function Dashboard() {
                             type="button"
                             onClick={copyWidgetSnippet}
                             disabled={!widgetSnippet}
-                            className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-medium text-white/70 transition-colors hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
+                            className="inline-flex items-center gap-2 rounded-xl bg-white/5 px-3 py-2 text-xs font-medium text-white/70 transition-colors hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
                           >
                             <Copy className="h-3.5 w-3.5" />
                             {copiedSnippet ? 'Copied' : 'Copy snippet'}
                           </button>
                         </div>
 
-                        <div className="mt-6 rounded-2xl border border-white/10 bg-[#101010] p-4">
+                        <div className="mt-6 rounded-2xl bg-[#101010] p-4">
                           <div className="flex items-center gap-3">
                             <div
-                              className="flex h-9 w-9 items-center justify-center rounded-full border border-white/10"
+                              className="flex h-9 w-9 items-center justify-center rounded-full"
                               style={{ backgroundColor: colorInputValue(chatbotForm.brand_color) }}
                             >
                               <Bot className="w-4 h-4 text-white" />
@@ -1642,10 +1446,10 @@ export function Dashboard() {
                           </p>
                         </div>
 
-                        <div className="mt-4 rounded-2xl border border-white/10 bg-black/20 p-4">
+                        <div className="mt-4 rounded-2xl bg-black/20 p-4">
                           <p className="text-xs font-medium uppercase tracking-[0.2em] text-white/35">Embed code</p>
                           {widgetSnippet ? (
-                            <pre className="mt-3 overflow-x-auto rounded-xl border border-white/10 bg-black/40 p-4 text-[11px] leading-relaxed text-white/70">{widgetSnippet}</pre>
+                            <pre className="mt-3 overflow-x-auto rounded-xl bg-black/40 p-4 text-[11px] leading-relaxed text-white/70">{widgetSnippet}</pre>
                           ) : (
                             <div className="mt-3 rounded-xl border border-dashed border-white/10 bg-white/5 px-4 py-3 text-sm text-white/45">
                               Set a website domain and mark this chatbot active to generate the install snippet.
@@ -1658,17 +1462,17 @@ export function Dashboard() {
                       </motion.div>
                     )}
 
-                    {(editorTab === 'faqs' || editorTab === 'knowledge' || editorTab === 'publish') && isCreatingChatbot && (
+                    {(editorTab === 'knowledge' || editorTab === 'publish') && isCreatingChatbot && (
                       <motion.div
                         initial={{ opacity: 0, y: 18 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ duration: 0.5 }}
-                        className="border border-white/10 bg-[#1c1c1c]/20 backdrop-blur-xl rounded-3xl p-6 shadow-2xl text-center"
+                        className="bg-[#1c1c1c]/20 backdrop-blur-xl rounded-3xl p-6 shadow-2xl text-center"
                       >
                         <Settings className="w-10 h-10 text-white/25 mx-auto" />
                         <h2 className="text-xl font-semibold text-white/75 mt-4">Save your chatbot first</h2>
                         <p className="text-sm text-white/40 mt-2 max-w-md mx-auto">
-                          Create the chatbot to access {editorTab === 'faqs' ? 'FAQs' : editorTab === 'knowledge' ? 'Knowledge' : 'Publish'} features.
+                          Create the chatbot to access {editorTab === 'knowledge' ? 'Knowledge' : 'Publish'} features.
                         </p>
                       </motion.div>
                     )}
@@ -1683,7 +1487,7 @@ export function Dashboard() {
               initial={{ opacity: 0, y: 18 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5 }}
-              className="min-h-[520px] border border-white/10 bg-[#1c1c1c]/20 backdrop-blur-xl rounded-3xl p-8 shadow-2xl flex flex-col items-center justify-center text-center"
+              className="min-h-[520px] bg-[#1c1c1c]/20 backdrop-blur-xl rounded-3xl p-8 shadow-2xl flex flex-col items-center justify-center text-center"
             >
               {activeView === 'analytics' ? <BarChart2 className="w-12 h-12 text-white/25" /> : <Users className="w-12 h-12 text-white/25" />}
               <h1 className="text-2xl font-semibold text-white mt-5">{pageTitle}</h1>

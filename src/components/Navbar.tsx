@@ -15,7 +15,7 @@ export function Navbar() {
         initial={{ y: -20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
-        className="fixed top-4 md:top-6 left-0 right-0 z-50 w-[calc(100%-2rem)] max-w-5xl mx-auto flex items-center justify-between px-4 md:px-6 py-2.5 md:py-3.5 backdrop-blur-md bg-vella-darker/60 border border-white/10 rounded-full shadow-2xl"
+        className="fixed top-4 md:top-6 left-0 right-0 z-50 w-[calc(100%-2rem)] max-w-5xl mx-auto flex items-center justify-between px-4 md:px-6 py-2.5 md:py-3.5 backdrop-blur-md bg-vella-darker/60 rounded-full shadow-2xl"
       >
         <div className="flex items-center gap-12">
           <Link to="/" className="flex items-center gap-2 text-2xl font-bold tracking-tighter text-vella-white">
@@ -66,7 +66,7 @@ export function Navbar() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
             transition={{ duration: 0.2 }}
-            className="fixed top-[80px] left-4 right-4 z-40 bg-vella-darker/95 backdrop-blur-xl border border-white/10 rounded-3xl p-6 shadow-2xl md:hidden flex flex-col gap-6"
+            className="fixed top-[80px] left-4 right-4 z-40 bg-vella-darker/95 backdrop-blur-xl rounded-3xl p-6 shadow-2xl md:hidden flex flex-col gap-6"
           >
             <div className="flex flex-col gap-4">
               {links.map((link) => (
@@ -89,7 +89,7 @@ export function Navbar() {
               </div>
             ) : (
               <div className="flex flex-col gap-4">
-                <Link to="/login" onClick={() => setIsOpen(false)} className="text-center py-3 text-base font-medium text-vella-white border border-white/10 rounded-xl hover:bg-white/5 transition-colors">
+                <Link to="/login" onClick={() => setIsOpen(false)} className="text-center py-3 text-base font-medium text-vella-white rounded-xl hover:bg-white/5 transition-colors">
                   Login
                 </Link>
                 <Link to="/signup" onClick={() => setIsOpen(false)} className="text-center py-3 text-base font-medium text-vella-black bg-vella-white rounded-xl hover:bg-gray-200 transition-colors">

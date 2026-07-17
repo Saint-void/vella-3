@@ -21,7 +21,7 @@ export function DashboardShowcase() {
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
-          className="w-full rounded-2xl glass-panel border border-white/10 overflow-hidden shadow-2xl relative"
+          className="w-full rounded-2xl glass-panel overflow-hidden shadow-2xl relative"
         >
           {/* Dashboard Header */}
           <div className="h-12 md:h-14 border-b border-vella-border bg-vella-darker/80 px-4 md:px-6 flex items-center justify-between">

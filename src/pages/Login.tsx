@@ -54,7 +54,7 @@ export function Login() {
 
           <div className="grid grid-cols-2 gap-4 mb-8">
             <button
-              className="flex items-center justify-center gap-2 py-3 border border-white/10 rounded-xl hover:bg-white/5 transition-colors text-sm font-medium text-white/80"
+              className="flex items-center justify-center gap-2 py-3 rounded-xl hover:bg-white/5 transition-colors text-sm font-medium text-white/80"
               type="button"
               onClick={() => startOAuth("google")}
             >
@@ -67,7 +67,7 @@ export function Login() {
               Google
             </button>
             <button
-              className="flex items-center justify-center gap-2 py-3 border border-white/10 rounded-xl hover:bg-white/5 transition-colors text-sm font-medium text-white/80"
+              className="flex items-center justify-center gap-2 py-3 rounded-xl hover:bg-white/5 transition-colors text-sm font-medium text-white/80"
               type="button"
               onClick={() => startOAuth("github")}
             >

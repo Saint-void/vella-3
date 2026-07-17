@@ -24,7 +24,7 @@ const Dashboard = lazy(() => import('./pages/Dashboard').then(m => ({ default: m
 const ProfilePage = lazy(() => import('./pages/Profile').then(m => ({ default: m.ProfilePage })));
 const AuthCallback = lazy(() => import('./pages/AuthCallback').then(m => ({ default: m.AuthCallback })));
 const Widget = lazy(() => import('./pages/Widget').then(m => ({ default: m.Widget })));
-const WIDGET_CHATBOT_ID = 'd294bbbd-02e5-4b5b-931f-3bf3f354257a';
+const WIDGET_CHATBOT_ID = 'b2db9391-7784-4247-b1fd-ba939bbbab11';
 
 export default function App() {
   const location = useLocation();

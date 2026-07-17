@@ -12,7 +12,7 @@ type Profile = {
 };
 
 const inputClass =
-  'mt-2 w-full bg-[#101010] border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder-white/30 focus:outline-none focus:border-white/30 disabled:opacity-50';
+  'mt-2 w-full bg-[#101010] rounded-xl px-4 py-3 text-sm text-white placeholder-white/30 focus:outline-none focus:border-white/30 disabled:opacity-50';
 
 function initials(profile: Profile | null, email?: string) {
   const first = profile?.first_name?.trim()[0];
@@ -102,9 +102,9 @@ export function ProfilePage() {
               Back
             </button>
 
-            <div className="border border-white/10 bg-[#1c1c1c]/20 backdrop-blur-xl rounded-3xl p-6 md:p-8 shadow-2xl">
+            <div className="bg-[#1c1c1c]/20 backdrop-blur-xl rounded-3xl p-6 md:p-8 shadow-2xl">
               <div className="flex items-center gap-4">
-                <div className="w-16 h-16 rounded-full bg-white/10 flex items-center justify-center text-2xl font-medium border border-white/10">
+                <div className="w-16 h-16 rounded-full bg-white/10 flex items-center justify-center text-2xl font-medium">
                   {initials(profile, email)}
                 </div>
                 <div>
@@ -146,7 +146,7 @@ export function ProfilePage() {
                   <input
                     value={email ?? ''}
                     disabled
-                    className="mt-2 w-full bg-[#101010] border border-white/10 rounded-xl px-4 py-3 text-sm text-white/50 disabled:opacity-70"
+                    className="mt-2 w-full bg-[#101010] rounded-xl px-4 py-3 text-sm text-white/50 disabled:opacity-70"
                   />
                 </label>
 
@@ -162,7 +162,7 @@ export function ProfilePage() {
                   <button
                     type="button"
                     onClick={handleSignOut}
-                    className="inline-flex items-center justify-center gap-2 px-5 py-3 text-sm font-medium text-white/70 border border-white/10 rounded-xl hover:bg-white/5 transition-colors"
+                    className="inline-flex items-center justify-center gap-2 px-5 py-3 text-sm font-medium text-white/70 rounded-xl hover:bg-white/5 transition-colors"
                   >
                     Sign Out
                   </button>

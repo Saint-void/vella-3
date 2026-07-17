@@ -47,7 +47,7 @@ export function FeaturesPage() {
             </div>
             <div className="relative">
               <div className="absolute inset-0 bg-gradient-to-r from-blue-500/20 to-purple-500/20 blur-[100px] rounded-full" />
-              <div className="glass-panel border border-white/10 rounded-2xl p-6 relative z-10">
+              <div className="glass-panel rounded-2xl p-6 relative z-10">
                 <div className="space-y-4">
                   <div className="flex items-center justify-between p-4 bg-vella-darker rounded-xl border border-white/5">
                     <div className="flex items-center gap-3">
