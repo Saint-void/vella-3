@@ -1117,7 +1117,7 @@ export function Dashboard() {
                           </label>
                           <div className="block md:col-span-2">
                             <span className="text-xs font-medium text-white/45">Chatbot logo</span>
-                            <div className="mt-2 flex flex-col gap-3 rounded-2xl border border-dashed border-white/15 bg-black/20 p-4 sm:flex-row sm:items-center">
+                            {/* <div className="mt-2 flex flex-col gap-3 rounded-2xl border border-dashed border-white/15 bg-black/20 p-4 sm:flex-row sm:items-center">
                               <div
                                 className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full"
                                 style={{ backgroundColor: colorInputValue(chatbotForm.brand_color) }}
@@ -1128,10 +1128,10 @@ export function Dashboard() {
                                   <Bot className="h-5 w-5 text-white" />
                                 )}
                               </div>
-                              <div className="min-w-0 flex-1">
+                              {/* <div className="min-w-0 flex-1">
                                 <p className="text-sm text-white/75">{chatbotForm.logo_url ? 'Custom logo uploaded' : 'Use your business logo in the widget header.'}</p>
                                 <p className="mt-1 text-xs text-white/40">PNG, JPEG, WebP, or GIF · maximum 2 MB</p>
-                              </div>
+                              </div> 
                               <div className="flex shrink-0 gap-2">
                                 <label className={`inline-flex cursor-pointer items-center gap-2 rounded-xl bg-white px-3 py-2 text-xs font-semibold text-vella-black transition-colors hover:bg-gray-200 ${(!selectedChatbot || isUploadingLogo) ? 'pointer-events-none opacity-50' : ''}`}>
                                   {isUploadingLogo ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <UploadCloud className="h-3.5 w-3.5" />}
@@ -1155,7 +1155,7 @@ export function Dashboard() {
                                   </button>
                                 )}
                               </div>
-                            </div>
+                            </div> */}
                             {!selectedChatbot && <p className="mt-2 text-xs text-white/35">Save this chatbot before uploading its logo.</p>}
                           </div>
                           <label className="block">
