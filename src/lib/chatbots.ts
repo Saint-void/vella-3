@@ -1,4 +1,5 @@
 import { apiRequest } from "./api";
+import type { WidgetSettings } from "./widgetDesign";
 
 export type Chatbot = {
   id: string;
@@ -12,6 +13,7 @@ export type Chatbot = {
   greeting_message: string;
   brand_color: string;
   logo_url: string | null;
+  widget_settings: Partial<WidgetSettings>;
   handoff_email: string | null;
   status: "draft" | "active" | "paused" | "archived";
   created_at: string;
@@ -28,6 +30,7 @@ export type ChatbotPayload = {
   greeting_message: string;
   brand_color: string;
   logo_url?: string | null;
+  widget_settings?: Partial<WidgetSettings>;
   handoff_email?: string | null;
 };
 

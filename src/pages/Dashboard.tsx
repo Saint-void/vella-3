@@ -484,11 +484,14 @@ export function Dashboard() {
 
     setIsUploadingLogo(true);
     setChatbotError(null);
+    console.log(`📤 Uploading logo for chatbot ${selectedChatbot.id}:`, file.name, file.type, file.size);
     try {
       const updated = await uploadChatbotLogo(accessToken, selectedChatbot.id, file);
+      console.log('✓ Logo uploaded successfully, logo_url:', updated.logo_url);
       setChatbots((current) => current.map((chatbot) => (chatbot.id === updated.id ? updated : chatbot)));
       setChatbotForm(chatbotToForm(updated));
     } catch (err) {
+      console.error('✗ Logo upload failed:', err);
       setChatbotError(err instanceof Error ? err.message : 'Could not upload logo.');
     } finally {
       setIsUploadingLogo(false);
@@ -1123,10 +1126,9 @@ export function Dashboard() {
                                 style={{ backgroundColor: colorInputValue(chatbotForm.brand_color) }}
                               >
                                 {logoPreviewUrl ? (
-                                  <img src={logoPreviewUrl} alt="Chatbot logo preview" className="h-full w-full object-cover" />
-                                ) : (
-                                  <Bot className="h-5 w-5 text-white" />
-                                )}
+                                  <img src={logoPreviewUrl} alt="Chatbot logo preview" className="h-full w-full object-cover" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+                                ) : null}
+                                {!logoPreviewUrl && <Bot className="h-5 w-5 text-white" />}
                               </div>
                               <div className="min-w-0 flex-1">
                                 <p className="text-sm text-white/75">{chatbotForm.logo_url ? 'Custom logo uploaded' : 'Use your business logo in the widget header.'}</p>
@@ -1526,10 +1528,9 @@ export function Dashboard() {
                               style={{ backgroundColor: colorInputValue(chatbotForm.brand_color) }}
                             >
                               {logoPreviewUrl ? (
-                                <img src={logoPreviewUrl} alt={`${chatbotForm.business_name || 'Chatbot'} logo`} className="h-full w-full object-cover" />
-                              ) : (
-                                <Bot className="w-4 h-4 text-white" />
-                              )}
+                                <img src={logoPreviewUrl} alt={`${chatbotForm.business_name || 'Chatbot'} logo`} className="h-full w-full object-cover" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+                              ) : null}
+                              {!logoPreviewUrl && <Bot className="w-4 h-4 text-white" />}
                             </div>
                             <div>
                               <p className="text-sm font-medium text-white">{chatbotForm.name || 'Support Assistant'}</p>

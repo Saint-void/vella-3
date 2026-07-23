@@ -1,18 +1,23 @@
 import { useEffect, useState } from 'react';
-import { API_HEADERS } from './api';
+import { API_BASE_URL, API_HEADERS } from './api';
 
-function isNgrokUrl(source: string): boolean {
+function isApiUrl(source: string): boolean {
   try {
-    return new URL(source, window.location.href).hostname.includes('ngrok');
+    // Check if it's an absolute URL pointing to an API endpoint
+    if (source.startsWith('http://') || source.startsWith('https://')) {
+      return source.includes('/api/');
+    }
+    // Check if it's a relative API path
+    return source.startsWith('/api/');
   } catch {
     return false;
   }
 }
 
 /**
- * ngrok's interstitial is returned to normal image requests as HTML. Fetching
- * its image URLs with the same bypass header as the API client and rendering a
- * short-lived blob URL keeps uploaded logos working in an iframe as well.
+ * Load logo images from API endpoints as blob URLs. Handles both relative and
+ * absolute API URLs by fetching them with proper headers and creating blob URLs.
+ * Non-API URLs (external, data) are used directly without fetching.
  */
 export function useLogoAsset(source: string | null | undefined): string | null {
   const [assetUrl, setAssetUrl] = useState<string | null>(null);
@@ -22,7 +27,9 @@ export function useLogoAsset(source: string | null | undefined): string | null {
       setAssetUrl(null);
       return;
     }
-    if (!isNgrokUrl(source)) {
+
+    // For non-API URLs (external URLs, data URLs), use directly
+    if (!isApiUrl(source)) {
       setAssetUrl(source);
       return;
     }
@@ -33,16 +40,23 @@ export function useLogoAsset(source: string | null | undefined): string | null {
 
     void (async () => {
       try {
-        const response = await fetch(source, {
-          headers: { ...API_HEADERS, 'ngrok-skip-browser-warning': 'true' },
-        });
+        // For API URLs, always fetch with proper headers to create blob URL
+        const fetchUrl = source.startsWith('http') ? source : `${API_BASE_URL}${source}`;
+        console.log(`📥 Fetching logo from ${fetchUrl} with headers:`, API_HEADERS);
+        
+        const response = await fetch(fetchUrl, { headers: API_HEADERS });
         const contentType = response.headers.get('content-type') ?? '';
+        
+        console.log(`📊 Logo response: ${response.status} ${contentType}`);
+        
         if (!response.ok || !contentType.startsWith('image/')) {
-          throw new Error('Logo endpoint did not return an image.');
+          console.warn(`Logo fetch failed: ${response.status} ${contentType}`);
+          throw new Error(`Logo endpoint did not return an image. Got ${contentType} instead.`);
         }
         objectUrl = URL.createObjectURL(await response.blob());
         if (isCurrent) setAssetUrl(objectUrl);
-      } catch {
+      } catch (err) {
+        console.warn('Logo loading error:', err);
         if (isCurrent) setAssetUrl(null);
       }
     })();
