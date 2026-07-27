@@ -24,10 +24,12 @@ const Dashboard = lazy(() => import('./pages/Dashboard').then(m => ({ default: m
 const ProfilePage = lazy(() => import('./pages/Profile').then(m => ({ default: m.ProfilePage })));
 const AuthCallback = lazy(() => import('./pages/AuthCallback').then(m => ({ default: m.AuthCallback })));
 const Widget = lazy(() => import('./pages/Widget').then(m => ({ default: m.Widget })));
+
 const WIDGET_CHATBOT_ID = 'b2db9391-7784-4247-b1fd-ba939bbbab11';
 
 export default function App() {
   const location = useLocation();
+
   const isStandalonePage =
     location.pathname === '/login' ||
     location.pathname === '/signup' ||
@@ -36,12 +38,7 @@ export default function App() {
     location.pathname === '/auth/callback' ||
     location.pathname.startsWith('/widget/');
 
-  // The /widget/:chatbotId route is rendered *inside* the widget's own
-  // iframe. If that route also loads widget-loader.js, it embeds a
-  // fresh copy of itself inside itself -- and that copy does the same
-  // thing, forever. This guard is what makes the widget safe to show
-  // on every real page without that recursion.
-
+  // Load widget on every page except the widget iframe itself.
   useEffect(() => {
     if (location.pathname.startsWith('/widget/')) {
       return;
@@ -51,30 +48,31 @@ export default function App() {
     script.async = true;
     script.src = `${import.meta.env.VITE_WIDGET_LOADER_URL}/widget-loader.js`;
     script.dataset.vellaChatbotId = WIDGET_CHATBOT_ID;
+    script.dataset.vellaBaseUrl = import.meta.env.VITE_WIDGET_BASE_URL;
+
     document.body.appendChild(script);
 
-    useEffect(() => {
-      if (location.pathname.startsWith('/widget/')) return;
+    return () => {
+      script.remove();
 
-      const script = document.createElement('script');
-      script.async = true;
-      script.src = `${import.meta.env.VITE_WIDGET_LOADER_URL}/widget-loader.js`;
-      script.dataset.vellaChatbotId = WIDGET_CHATBOT_ID;
-      script.dataset.vellaBaseUrl = import.meta.env.VITE_WIDGET_BASE_URL; // stop relying on script origin inference
-      document.body.appendChild(script);
+      document
+        .getElementById(`vella-widget-${WIDGET_CHATBOT_ID}`)
+        ?.remove();
 
-      return () => {
-        script.remove();
-        document.getElementById(`vella-widget-${WIDGET_CHATBOT_ID}`)?.remove(); // give the iframe a stable id in widget-loader.js instead of matching by src
-        const vellaWindow = window as { __vellaMountedChatbots?: Set<string> };
-        vellaWindow.__vellaMountedChatbots?.delete(WIDGET_CHATBOT_ID);
+      const vellaWindow = window as {
+        __vellaMountedChatbots?: Set<string>;
       };
-    }, [location.pathname]);
+
+      vellaWindow.__vellaMountedChatbots?.delete(WIDGET_CHATBOT_ID);
+    };
+  }, [location.pathname]);
 
   return (
     <div className="relative min-h-screen bg-vella-black overflow-hidden selection:bg-vella-white selection:text-vella-black">
       <ScrollToTop />
+
       <div className="absolute inset-0 bg-grid-pattern pointer-events-none [mask-image:radial-gradient(ellipse_at_top,white,transparent_80%)]" />
+
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[1000px] h-[500px] opacity-20 pointer-events-none blur-[120px] bg-vella-white rounded-full" />
 
       <div className="relative z-10 flex flex-col items-center">
