@@ -16,6 +16,7 @@ export default defineConfig({
     host: true,
     allowedHosts: [
       'vella-3.onrender.com',
+      'vella-teal.vercel.app',
     ],
     hmr: true,
     watch: process.env.DISABLE_HMR === 'true' ? null : {},
