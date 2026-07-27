@@ -49,24 +49,27 @@ export default function App() {
 
     const script = document.createElement('script');
     script.async = true;
-    script.src = 'http://localhost:3000/widget-loader.js';
+    script.src = `${import.meta.env.VITE_WIDGET_LOADER_URL}/widget-loader.js`;
     script.dataset.vellaChatbotId = WIDGET_CHATBOT_ID;
     document.body.appendChild(script);
 
-    return () => {
-      script.remove();
-      document
-        .querySelectorAll('iframe[src*="vella-3.onrender.com/widget/"]')
-        .forEach((el) => el.remove());
-      // Also clear the loader's own mount guard so navigating back to
-      // a normal page re-mounts cleanly instead of thinking it's
-      // already running from a previous route.
-      const vellaWindow = window as any;
-      if (vellaWindow.__vellaMountedChatbots) {
-        vellaWindow.__vellaMountedChatbots.delete(WIDGET_CHATBOT_ID);
-      }
-    };
-  }, [location.pathname]);
+    useEffect(() => {
+      if (location.pathname.startsWith('/widget/')) return;
+
+      const script = document.createElement('script');
+      script.async = true;
+      script.src = `${import.meta.env.VITE_WIDGET_LOADER_URL}/widget-loader.js`;
+      script.dataset.vellaChatbotId = WIDGET_CHATBOT_ID;
+      script.dataset.vellaBaseUrl = import.meta.env.VITE_WIDGET_BASE_URL; // stop relying on script origin inference
+      document.body.appendChild(script);
+
+      return () => {
+        script.remove();
+        document.getElementById(`vella-widget-${WIDGET_CHATBOT_ID}`)?.remove(); // give the iframe a stable id in widget-loader.js instead of matching by src
+        const vellaWindow = window as { __vellaMountedChatbots?: Set<string> };
+        vellaWindow.__vellaMountedChatbots?.delete(WIDGET_CHATBOT_ID);
+      };
+    }, [location.pathname]);
 
   return (
     <div className="relative min-h-screen bg-vella-black overflow-hidden selection:bg-vella-white selection:text-vella-black">
